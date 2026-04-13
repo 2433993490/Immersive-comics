@@ -60,12 +60,15 @@ function createButton(img) {
     btn.textContent = "翻译中...";
 
     try {
-      const dataUrl = await imageToDataUrl(img);
+      const imageUrl = img.currentSrc || img.src;
+      const dataUrl = await getImageDataUrl(img, imageUrl);
+      const browserOcrBlocks = await detectTextBlocksWithBrowser(img);
       const response = await chrome.runtime.sendMessage({
         type: "PROCESS_IMAGE",
         payload: {
-          imageUrl: img.currentSrc || img.src,
-          dataUrl
+          imageUrl,
+          dataUrl,
+          browserOcrBlocks
         }
       });
 
@@ -76,14 +79,19 @@ function createButton(img) {
       renderOverlay(img, response.result.blocks || []);
       btn.textContent = "已翻译";
     } catch (error) {
-      btn.textContent = "失败，重试";
+      const reason = formatErrorMessage(error);
+      btn.textContent = reason;
+      btn.title = reason;
       console.error("Comic translator error", error);
     } finally {
       setTimeout(() => {
         btn.disabled = false;
         btn.classList.remove("comic-translate-loading");
+        btn.title = "";
         if (btn.textContent === "已翻译") {
           btn.textContent = previous;
+        } else if (btn.textContent !== previous) {
+          btn.textContent = "翻译漫画";
         }
       }, 1500);
     }
@@ -166,6 +174,11 @@ function clearAllOverlays() {
 
 function imageToDataUrl(img) {
   return new Promise((resolve, reject) => {
+    if (!img.naturalWidth || !img.naturalHeight) {
+      reject(new Error("Image is not ready"));
+      return;
+    }
+
     const canvas = document.createElement("canvas");
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
@@ -175,13 +188,58 @@ function imageToDataUrl(img) {
       return;
     }
 
-    const source = new Image();
-    source.crossOrigin = "anonymous";
-    source.onload = () => {
-      ctx.drawImage(source, 0, 0);
+    try {
+      ctx.drawImage(img, 0, 0);
       resolve(canvas.toDataURL("image/png"));
-    };
-    source.onerror = () => reject(new Error("Image to canvas failed (CORS?)"));
-    source.src = img.currentSrc || img.src;
+    } catch (error) {
+      reject(new Error(`Image to canvas failed (${error?.message || "CORS?"})`));
+    }
   });
+}
+
+async function getImageDataUrl(img, imageUrl) {
+  try {
+    return await imageToDataUrl(img);
+  } catch (error) {
+    const fallback = await chrome.runtime.sendMessage({
+      type: "FETCH_IMAGE_DATA_URL",
+      payload: {
+        imageUrl,
+        pageUrl: location.href
+      }
+    });
+    if (!fallback?.ok || !fallback?.dataUrl) {
+      throw error;
+    }
+    return fallback.dataUrl;
+  }
+}
+
+function formatErrorMessage(error) {
+  const message = String(error?.message || "未知错误").trim();
+  if (!message) return "失败：未知错误";
+  const shortMessage = message.length > 24 ? `${message.slice(0, 24)}…` : message;
+  return `失败：${shortMessage}`;
+}
+
+async function detectTextBlocksWithBrowser(img) {
+  if (typeof TextDetector === "undefined") return null;
+  try {
+    const detector = new TextDetector();
+    const results = await detector.detect(img);
+    return results
+      .map((item) => ({
+        text: String(item?.rawValue || "").trim(),
+        box: {
+          x: Number(item?.boundingBox?.x || 0),
+          y: Number(item?.boundingBox?.y || 0),
+          width: Number(item?.boundingBox?.width || 42),
+          height: Number(item?.boundingBox?.height || 22)
+        }
+      }))
+      .filter((line) => line.text.length > 0);
+  } catch (error) {
+    console.debug("browser OCR failed", error);
+    return null;
+  }
 }
