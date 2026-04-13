@@ -31,6 +31,12 @@
 
 - **翻译源**
   - `google`（默认）
+  - `claude` / `deepl` / `deepseek` / `gemini` / `openl`
+  - `azureOpenai` / `azureTranslator`
+  - `aliyunBailian` / `qwenMt` / `aliyunTranslate`
+  - `baiduQianfan` / `doubao` / `baiduTranslate`
+  - `caiyun` / `volcengine` / `tencentTransmart` / `niutrans`
+  - `youdao` / `youdaoLlm`
   - `custom`（自定义 REST 接口）
 - **AI 模型（可选）**
   - 关闭
@@ -65,4 +71,3 @@
 - `content.css` - 覆盖层视觉样式
 - `popup.html` / `popup.js` - 快速操作入口
 - `options.html` / `options.js` - 配置管理
-
