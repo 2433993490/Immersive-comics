@@ -167,6 +167,16 @@ const MODEL_PROVIDERS = new Set([
   "baiduQianfan",
   "doubao"
 ]);
+const MODEL_OPTIONS = {
+  claude: ["claude-3-5-sonnet-latest", "claude-3-7-sonnet-latest", "__custom__"],
+  deepseek: ["deepseek-chat", "deepseek-reasoner", "__custom__"],
+  gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "__custom__"],
+  azureOpenai: ["gpt-4o-mini", "gpt-4.1-mini", "__custom__"],
+  aliyunBailian: ["qwen-plus", "qwen-max", "__custom__"],
+  qwenMt: ["qwen-mt-turbo", "qwen-mt-plus", "__custom__"],
+  baiduQianfan: ["ernie-4.0-turbo-8k", "ernie-speed-128k", "__custom__"],
+  doubao: ["doubao-1.5-pro-32k", "doubao-1.5-lite-32k", "__custom__"]
+};
 let providerConfigs = {};
 
 
@@ -186,7 +196,10 @@ async function init() {
   });
 
   $("testProviderBtn")?.addEventListener("click", testProviderConnection);
+  $("testOcrBtn")?.addEventListener("click", testOcrConnection);
   $("ocrProvider")?.addEventListener("change", updateOcrSection);
+  $("providerModelSelect")?.addEventListener("change", onModelModeChange);
+  $("providerModelCustom")?.addEventListener("input", syncModelHiddenValue);
 }
 
 function bind(config) {
@@ -275,7 +288,7 @@ function hydrateProviderConfig(provider, fallbackCustom = null) {
 
   $("providerEndpoint").value = cfg.endpoint || "";
   $("providerApiKey").value = cfg.apiKey || "";
-  $("providerModel").value = cfg.model || "";
+  setupModelFields(provider, cfg.model || "");
   $("customTranslateEndpoint").value = cfg.endpoint || "";
   $("customTranslateHeaders").value = cfg.headers || "Content-Type: application/json";
   $("customTranslateBody").value = cfg.bodyTemplate || "{\n  \"text\": \"{{text}}\",\n  \"target\": \"{{targetLang}}\"\n}";
@@ -286,15 +299,16 @@ function persistCurrentProviderConfig() {
   const provider = $("translatorProvider").value;
   if (!provider) return;
 
+  const selectedModel = $("providerModel").value.trim();
   let bodyTemplate = $("customTranslateBody").value;
-  if (MODEL_PROVIDERS.has(provider) && $("providerModel").value.trim()) {
-    bodyTemplate = bodyTemplate.replace(/"model"\s*:\s*"[^"]*"/, `"model": "${$("providerModel").value.trim()}"`);
+  if (MODEL_PROVIDERS.has(provider) && selectedModel) {
+    bodyTemplate = bodyTemplate.replace(/"model"\s*:\s*"[^"]*"/, `"model": "${selectedModel}"`);
   }
 
   const cfg = {
     endpoint: $("providerEndpoint").value.trim() || $("customTranslateEndpoint").value.trim(),
     apiKey: $("providerApiKey").value.trim(),
-    model: $("providerModel").value.trim(),
+    model: selectedModel,
     headers: injectApiKey($("customTranslateHeaders").value, $("providerApiKey").value.trim()),
     bodyTemplate,
     responsePath: $("customTranslatePath").value.trim()
@@ -336,7 +350,11 @@ function updateTranslateApiSection() {
   const isBuiltIn = BUILTIN_NO_SETUP_PROVIDERS.has(provider);
   const isCustom = provider === "custom";
   hint.style.display = isBuiltIn ? "block" : "none";
-  $("modelFieldWrap").style.display = MODEL_PROVIDERS.has(provider) ? "block" : "none";
+  const modelVisible = MODEL_PROVIDERS.has(provider);
+  $("modelFieldWrap").style.display = modelVisible ? "block" : "none";
+  if (modelVisible) {
+    setupModelFields(provider, $("providerModel").value.trim());
+  }
 
   ["providerEndpoint", "providerApiKey", "providerModel", "testProviderBtn"].forEach((id) => {
     const node = $(id);
@@ -376,6 +394,71 @@ async function testProviderConnection() {
     resultNode.textContent = `成功：${response.result}`;
   } catch (error) {
     resultNode.textContent = `失败：${error.message || error}`;
+  }
+}
+
+async function testOcrConnection() {
+  const resultNode = $("testOcrResult");
+  resultNode.textContent = "测试中...";
+  const next = collect();
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "TEST_OCR",
+      payload: { config: next }
+    });
+    if (!response?.ok) throw new Error(response?.error || "测试失败");
+    resultNode.textContent = `成功：识别到 ${response.result?.count || 0} 条文本`;
+  } catch (error) {
+    resultNode.textContent = `失败：${error.message || error}`;
+  }
+}
+
+function setupModelFields(provider, currentModel) {
+  const select = $("providerModelSelect");
+  const custom = $("providerModelCustom");
+  const hidden = $("providerModel");
+  if (!select || !custom || !hidden) return;
+
+  const models = MODEL_OPTIONS[provider] || ["__custom__"];
+  select.innerHTML = "";
+  for (const model of models) {
+    const option = document.createElement("option");
+    option.value = model;
+    option.textContent = model === "__custom__" ? "自定义模型..." : model;
+    select.appendChild(option);
+  }
+
+  const matched = models.includes(currentModel) ? currentModel : "__custom__";
+  select.value = matched;
+  custom.style.display = matched === "__custom__" ? "block" : "none";
+  custom.value = matched === "__custom__" ? currentModel : "";
+  hidden.value = matched === "__custom__" ? currentModel : matched;
+}
+
+function onModelModeChange() {
+  const select = $("providerModelSelect");
+  const custom = $("providerModelCustom");
+  const hidden = $("providerModel");
+  if (!select || !custom || !hidden) return;
+
+  if (select.value === "__custom__") {
+    custom.style.display = "block";
+    hidden.value = custom.value.trim();
+    custom.focus();
+    return;
+  }
+
+  custom.style.display = "none";
+  hidden.value = select.value;
+}
+
+function syncModelHiddenValue() {
+  const select = $("providerModelSelect");
+  const custom = $("providerModelCustom");
+  const hidden = $("providerModel");
+  if (!select || !custom || !hidden) return;
+  if (select.value === "__custom__") {
+    hidden.value = custom.value.trim();
   }
 }
 

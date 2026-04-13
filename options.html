@@ -191,6 +191,10 @@
         margin-bottom: 10px;
         font-size: 13px;
       }
+      option {
+        color: #111827;
+        background: #ffffff;
+      }
 
       textarea {
         min-height: 78px;
@@ -230,6 +234,10 @@
         color: white;
         font-weight: 600;
         cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
       }
 
       #msg {
@@ -317,7 +325,9 @@
               </div>
               <div id="modelFieldWrap">
                 <label for="providerModel">模型</label>
-                <input id="providerModel" placeholder="gpt-4o-mini / qwen-plus ..." />
+                <select id="providerModelSelect"></select>
+                <input id="providerModelCustom" placeholder="输入自定义模型名" style="display:none;" />
+                <input id="providerModel" type="hidden" />
               </div>
             </div>
             <div class="test-row">
@@ -364,6 +374,10 @@
               <textarea id="customOcrBody"></textarea>
               <label for="customOcrPath">Custom OCR Response Path（需返回数组）</label>
               <input id="customOcrPath" placeholder="data.lines" />
+            </div>
+            <div class="test-row">
+              <button id="testOcrBtn" type="button">OCR 连通性测试</button>
+              <span id="testOcrResult" class="test-result"></span>
             </div>
           </div>
 

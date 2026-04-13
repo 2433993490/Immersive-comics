@@ -25,6 +25,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, result });
         return;
       }
+      if (message.type === "TEST_OCR") {
+        const config = message.payload.config || (await getConfig());
+        const testDataUrl =
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
+        const result = await runOcr({ config, imageUrl: "https://example.com/test.png", dataUrl: testDataUrl });
+        sendResponse({ ok: true, result: { count: result.length } });
+        return;
+      }
       sendResponse({ ok: false, error: "Unknown message type" });
     } catch (error) {
       sendResponse({ ok: false, error: error.message || String(error) });
@@ -232,21 +240,11 @@ async function translateText(text, config) {
 
   if (config.translator.provider !== "google") {
     const providerConfig = config.translator.providerConfigs?.[config.translator.provider];
-    const endpoint = providerConfig?.endpoint || config.translator.custom.endpoint;
-    if (!endpoint) {
-      throw new Error("Custom translator endpoint is empty");
-    }
-
-    const payload = applyTemplate(providerConfig?.bodyTemplate || config.translator.custom.bodyTemplate, {
-      text,
-      sourceLang: config.sourceLang || "auto",
-      targetLang: config.targetLang || "zh-CN"
-    });
-
-    const response = await fetch(endpoint, {
+    const requestConfig = buildTranslatorRequestConfig({ config, providerConfig, text });
+    const response = await fetch(requestConfig.endpoint, {
       method: "POST",
-      headers: parseHeaders(providerConfig?.headers || config.translator.custom.headers),
-      body: payload
+      headers: requestConfig.headers,
+      body: requestConfig.payload
     });
 
     if (!response.ok) {
@@ -254,7 +252,7 @@ async function translateText(text, config) {
     }
 
     const data = await response.json();
-    const translated = getByPath(data, providerConfig?.responsePath || config.translator.custom.responsePath);
+    const translated = getByPath(data, requestConfig.responsePath);
     if (!translated) {
       throw new Error("Translator responsePath produced empty result");
     }
@@ -263,6 +261,40 @@ async function translateText(text, config) {
   }
 
   throw new Error(`Unsupported translator provider: ${config.translator.provider}`);
+}
+
+function buildTranslatorRequestConfig({ config, providerConfig, text }) {
+  const provider = config.translator.provider;
+  const endpointTemplate = providerConfig?.endpoint || config.translator.custom.endpoint;
+  if (!endpointTemplate) {
+    throw new Error("Custom translator endpoint is empty");
+  }
+  const apiKey = providerConfig?.apiKey || "";
+  const model = providerConfig?.model || "";
+
+  const vars = {
+    text,
+    sourceLang: config.sourceLang || "auto",
+    targetLang: config.targetLang || "zh-CN",
+    key: encodeURIComponent(apiKey),
+    model
+  };
+  const endpoint = applyBraceTemplate(endpointTemplate, vars);
+  const payload = applyTemplate(providerConfig?.bodyTemplate || config.translator.custom.bodyTemplate, vars);
+
+  if ((provider === "gemini" || provider === "baiduQianfan") && !apiKey) {
+    throw new Error(`${provider} 平台需要填写 API Key/access token`);
+  }
+  if ((provider === "gemini" || provider === "baiduQianfan" || provider === "doubao" || provider === "openl") && !model) {
+    throw new Error(`${provider} 平台需要填写模型名称或服务代号`);
+  }
+
+  return {
+    endpoint,
+    payload,
+    headers: parseHeaders(providerConfig?.headers || config.translator.custom.headers),
+    responsePath: providerConfig?.responsePath || config.translator.custom.responsePath
+  };
 }
 
 function parseHeaders(raw) {
@@ -284,6 +316,12 @@ function parseHeaders(raw) {
 
 function applyTemplate(template, vars) {
   return String(template || "").replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_, key) => {
+    return vars[key] ?? "";
+  });
+}
+
+function applyBraceTemplate(template, vars) {
+  return String(template || "").replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key) => {
     return vars[key] ?? "";
   });
 }
