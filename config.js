@@ -5,6 +5,7 @@ export const DEFAULT_CONFIG = {
     provider: "google",
     googleEndpoint: "https://translate.googleapis.com/translate_a/single",
     azureTranslatorEndpoint: "https://api-edge.cognitive.microsofttranslator.com/translate?api-version=3.0",
+    providerConfigs: {},
     custom: {
       endpoint: "",
       headers: "Content-Type: application/json",
@@ -12,23 +13,12 @@ export const DEFAULT_CONFIG = {
       responsePath: "data.translation"
     }
   },
-  ai: {
-    enabled: false,
-    expert: "general",
-    endpoint: "",
-    apiKey: "",
-    model: "",
-    headers: "Content-Type: application/json",
-    promptTemplate:
-      "你是漫画翻译润色助手。请将以下译文润色成自然简洁中文，保留语气与剧情信息，不要额外解释：\n{{text}}",
-    bodyTemplate:
-      "{\n  \"model\": \"{{model}}\",\n  \"messages\": [{\"role\": \"user\", \"content\": \"{{prompt}}\"}]\n}",
-    responsePath: "choices.0.message.content"
-  },
   ocr: {
     provider: "ocrspace",
     ocrSpaceEndpoint: "https://api.ocr.space/parse/image",
     ocrSpaceApiKey: "helloworld",
+    baiduOcrEndpoint: "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic",
+    baiduOcrAccessToken: "",
     custom: {
       endpoint: "",
       headers: "Content-Type: application/json",
