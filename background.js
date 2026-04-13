@@ -52,14 +52,37 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 async function processImage({ imageUrl, dataUrl }) {
   const config = await getConfig();
   const ocrBlocks = await runOcr({ config, imageUrl, dataUrl });
+  const translatedBlocks = await translateBlocksWithContext(ocrBlocks, config);
+
+  return { blocks: translatedBlocks };
+}
+
+async function translateBlocksWithContext(blocks, config) {
+  if (!Array.isArray(blocks) || blocks.length === 0) return [];
+
+  // 先尝试一次性翻译，降低逐行直译导致的“词语堆叠感”。
+  const delimiter = "\n<<<COMIC_TRANSLATE_SPLIT>>>\n";
+  const joined = blocks.map((b) => b.text || "").join(delimiter);
+
+  try {
+    const translatedJoined = await translateText(joined, config);
+    const parts = String(translatedJoined || "").split("<<<COMIC_TRANSLATE_SPLIT>>>");
+    if (parts.length === blocks.length) {
+      return blocks.map((block, index) => ({
+        ...block,
+        translated: (parts[index] || "").trim()
+      }));
+    }
+  } catch (error) {
+    console.debug("batch translate failed, fallback to per-block", error);
+  }
 
   const translatedBlocks = [];
-  for (const block of ocrBlocks) {
+  for (const block of blocks) {
     const translated = await translateText(block.text, config);
     translatedBlocks.push({ ...block, translated });
   }
-
-  return { blocks: translatedBlocks };
+  return translatedBlocks;
 }
 
 async function runOcr({ config, imageUrl, dataUrl, testMode = false }) {
@@ -166,7 +189,7 @@ async function runBaiduOcr(config, dataUrl, { testMode = false } = {}) {
     throw new Error("Baidu OCR access token is empty (or API Key/Secret Key is missing)");
   }
 
-  const endpoint = config.ocr.baiduOcrEndpoint || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic";
+  const endpoint = config.ocr.baiduOcrEndpoint || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate";
   const url = `${endpoint}${endpoint.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(token)}`;
   const body = new URLSearchParams({
     image: stripDataUrlPrefix(dataUrl)
@@ -197,10 +220,10 @@ async function runBaiduOcr(config, dataUrl, { testMode = false } = {}) {
     .map((item, index) => ({
       text: String(item.words || "").trim(),
       box: {
-        x: 8,
-        y: 8 + index * 26,
-        width: 320,
-        height: 24
+        x: Number(item?.location?.left ?? 8),
+        y: Number(item?.location?.top ?? 8 + index * 26),
+        width: Number(item?.location?.width ?? 320),
+        height: Number(item?.location?.height ?? 24)
       }
     }))
     .filter((line) => line.text.length > 0);

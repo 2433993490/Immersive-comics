@@ -17,7 +17,7 @@ export const DEFAULT_CONFIG = {
     provider: "ocrspace",
     ocrSpaceEndpoint: "https://api.ocr.space/parse/image",
     ocrSpaceApiKey: "helloworld",
-    baiduOcrEndpoint: "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic",
+    baiduOcrEndpoint: "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate",
     baiduOcrAccessToken: "",
     baiduOcrApiKey: "",
     baiduOcrSecretKey: "",
