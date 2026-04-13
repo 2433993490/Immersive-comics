@@ -213,7 +213,7 @@ function bind(config) {
 
   $("ocrProvider").value = config.ocr.provider;
   $("ocrSpaceKey").value = config.ocr.ocrSpaceApiKey;
-  $("baiduOcrEndpoint").value = config.ocr.baiduOcrEndpoint || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic";
+  $("baiduOcrEndpoint").value = config.ocr.baiduOcrEndpoint || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate";
   $("baiduOcrToken").value = config.ocr.baiduOcrAccessToken || "";
   $("baiduOcrApiKey").value = config.ocr.baiduOcrApiKey || "";
   $("baiduOcrSecretKey").value = config.ocr.baiduOcrSecretKey || "";
@@ -250,7 +250,7 @@ function collect() {
       provider: $("ocrProvider").value,
       ocrSpaceEndpoint: "https://api.ocr.space/parse/image",
       ocrSpaceApiKey: $("ocrSpaceKey").value.trim() || "helloworld",
-      baiduOcrEndpoint: $("baiduOcrEndpoint").value.trim() || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic",
+      baiduOcrEndpoint: $("baiduOcrEndpoint").value.trim() || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate",
       baiduOcrAccessToken: $("baiduOcrToken").value.trim(),
       baiduOcrApiKey: $("baiduOcrApiKey").value.trim(),
       baiduOcrSecretKey: $("baiduOcrSecretKey").value.trim(),
