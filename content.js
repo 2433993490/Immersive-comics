@@ -76,7 +76,10 @@ function createButton(img) {
       renderOverlay(img, response.result.blocks || []);
       btn.textContent = "已翻译";
     } catch (error) {
-      btn.textContent = "失败，重试";
+      const errorMessage = String(error?.message || error || "未知错误");
+      const shortReason = getShortFailureReason(errorMessage);
+      btn.textContent = `失败：${shortReason}`;
+      btn.title = errorMessage;
       console.error("Comic translator error", error);
     } finally {
       setTimeout(() => {
@@ -90,6 +93,14 @@ function createButton(img) {
   });
 
   return btn;
+}
+
+function getShortFailureReason(message) {
+  if (message.includes("接口无效或无法连接")) return "接口无效";
+  if (message.includes("API 错误")) return "API错误";
+  if (message.includes("OCR 无效")) return "OCR无效";
+  if (message.includes("翻译不可用")) return "翻译不可用";
+  return "重试";
 }
 
 function placeButton(img, btn) {
