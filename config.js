@@ -13,6 +13,7 @@ export const DEFAULT_CONFIG = {
   },
   ai: {
     enabled: false,
+    expert: "general",
     endpoint: "",
     apiKey: "",
     model: "",
