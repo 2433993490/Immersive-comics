@@ -42,12 +42,46 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       sendResponse({ ok: false, error: "Unknown message type" });
     } catch (error) {
-      sendResponse({ ok: false, error: error.message || String(error) });
+      sendResponse({ ok: false, error: formatUserFacingError(error) });
     }
   })();
 
   return true;
 });
+
+function formatUserFacingError(error) {
+  const message = String(error?.message || error || "未知错误");
+  const lower = message.toLowerCase();
+
+  if (
+    lower.includes("failed to fetch")
+    || lower.includes("networkerror")
+    || lower.includes("load failed")
+    || lower.includes("invalid url")
+    || lower.includes("request failed: 404")
+  ) {
+    return `接口无效或无法连接：${message}`;
+  }
+
+  if (
+    /\b(401|403)\b/.test(message)
+    || lower.includes("api key")
+    || lower.includes("access token")
+    || lower.includes("unauthorized")
+  ) {
+    return `API 错误（密钥无效或权限不足）：${message}`;
+  }
+
+  if (lower.includes("ocr")) {
+    return `OCR 无效：${message}`;
+  }
+
+  if (lower.includes("translate") || lower.includes("translator") || lower.includes("翻译")) {
+    return `翻译不可用：${message}`;
+  }
+
+  return `请求失败：${message}`;
+}
 
 async function processImage({ imageUrl, dataUrl }) {
   const config = await getConfig();
