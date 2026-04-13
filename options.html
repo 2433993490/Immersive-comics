@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Comic Translator Settings</title>
+    <style>
+      body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 24px; background: #020617; color: #e2e8f0; }
+      h1 { margin-top: 0; }
+      .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+      label { display: block; margin-bottom: 6px; font-size: 13px; color: #cbd5e1; }
+      input, select, textarea { width: 100%; border: 1px solid #334155; border-radius: 8px; background: #020617; color: #e2e8f0; padding: 8px; margin-bottom: 10px; font-size: 13px; box-sizing: border-box; }
+      textarea { min-height: 78px; resize: vertical; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      button { border: none; border-radius: 10px; padding: 10px 14px; background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; font-weight: 600; cursor: pointer; }
+      #msg { margin-left: 10px; color: #22c55e; }
+      .tip { font-size: 12px; color: #94a3b8; margin: 4px 0 10px; }
+    </style>
+  </head>
+  <body>
+    <h1>漫画翻译设置</h1>
+
+    <div class="card">
+      <h3>通用语言</h3>
+      <div class="row">
+        <div><label for="sourceLang">源语言</label><input id="sourceLang" placeholder="auto / en / ja" /></div>
+        <div><label for="targetLang">目标语言</label><input id="targetLang" placeholder="zh-CN" /></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>翻译 API</h3>
+      <label for="translatorProvider">翻译提供方</label>
+      <select id="translatorProvider"></select>
+      <label for="translatorEndpoint">Endpoint</label>
+      <input id="translatorEndpoint" placeholder="https://..." />
+      <p class="tip" id="providerTip"></p>
+
+      <div class="row">
+        <div><label for="translatorApiKey">API Key / Token</label><input id="translatorApiKey" type="password" /></div>
+        <div><label for="translatorApiSecret">API Secret（可选）</label><input id="translatorApiSecret" type="password" /></div>
+      </div>
+      <div class="row">
+        <div><label for="translatorModel">Model（可选）</label><input id="translatorModel" /></div>
+        <div><label for="translatorRegion">Region（Azure 用）</label><input id="translatorRegion" /></div>
+      </div>
+      <div class="row">
+        <div><label for="translatorService">Service（阿里云翻译）</label><input id="translatorService" /></div>
+        <div><label for="translatorCodename">Codename（OpenL）</label><input id="translatorCodename" /></div>
+      </div>
+      <label for="translatorParams">paramsString（阿里云翻译）</label>
+      <input id="translatorParams" placeholder="Action=TranslateGeneral&Version=2018-10-12..." />
+
+      <label for="customTranslateHeaders">自定义 Headers (每行 Key: Value)</label>
+      <textarea id="customTranslateHeaders"></textarea>
+      <label for="customTranslateBody">自定义 Body Template（复杂接口建议使用）</label>
+      <textarea id="customTranslateBody"></textarea>
+      <label for="customTranslatePath">自定义 Response Path</label>
+      <input id="customTranslatePath" placeholder="data.translation" />
+    </div>
+
+    <div class="card">
+      <h3>AI 大模型 API（可选）</h3>
+      <label><input id="aiEnabled" type="checkbox" style="width:auto; margin-right:6px;" /> 启用 AI 润色</label>
+      <label for="aiEndpoint">AI Endpoint</label><input id="aiEndpoint" placeholder="https://..." />
+      <div class="row">
+        <div><label for="aiKey">AI API Key</label><input id="aiKey" type="password" /></div>
+        <div><label for="aiModel">AI Model</label><input id="aiModel" placeholder="gpt-4o-mini / qwen-max ..." /></div>
+      </div>
+      <label for="aiHeaders">AI Headers</label><textarea id="aiHeaders"></textarea>
+      <label for="aiPrompt">Prompt Template</label><textarea id="aiPrompt"></textarea>
+      <label for="aiBody">Body Template</label><textarea id="aiBody"></textarea>
+      <label for="aiPath">Response Path</label><input id="aiPath" placeholder="choices.0.message.content" />
+    </div>
+
+    <div class="card">
+      <h3>OCR 源</h3>
+      <label for="ocrProvider">OCR 提供方</label>
+      <select id="ocrProvider"><option value="ocrspace">OCR.Space (默认)</option><option value="custom">Custom</option></select>
+      <label for="ocrSpaceKey">OCR.Space Key</label><input id="ocrSpaceKey" />
+      <label for="customOcrEndpoint">Custom OCR Endpoint</label><input id="customOcrEndpoint" placeholder="https://..." />
+      <label for="customOcrHeaders">Custom OCR Headers</label><textarea id="customOcrHeaders"></textarea>
+      <label for="customOcrBody">Custom OCR Body Template</label><textarea id="customOcrBody"></textarea>
+      <label for="customOcrPath">Custom OCR Response Path（需返回数组）</label><input id="customOcrPath" placeholder="data.lines" />
+    </div>
+
+    <button id="saveBtn">保存设置</button><span id="msg"></span>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
