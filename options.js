@@ -467,12 +467,13 @@ function syncModelHiddenValue() {
 }
 
 function updateOcrSection() {
-  const provider = $("ocrProvider").value || "ocrspace";
+  const provider = $("ocrProvider").value || "browser";
   const show = (id, visible) => {
     const el = $(id);
     if (el) el.style.display = visible ? "block" : "none";
   };
 
+  show("browserOcrFields", provider === "browser");
   show("ocrSpaceFields", provider === "ocrspace");
   show("baiduOcrFields", provider === "baiduOcr");
   show("customOcrFields", provider === "custom");

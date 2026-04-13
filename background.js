@@ -17,6 +17,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, result });
         return;
       }
+      if (message.type === "FETCH_IMAGE_DATA_URL") {
+        const dataUrl = await fetchImageAsDataUrl(message.payload);
+        sendResponse({ ok: true, dataUrl });
+        return;
+      }
       if (message.type === "OPEN_OPTIONS") {
         chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });
@@ -49,23 +54,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
-async function processImage({ imageUrl, dataUrl }) {
+async function processImage({ imageUrl, dataUrl, browserOcrBlocks }) {
   const config = await getConfig();
-  const ocrBlocks = await runOcr({ config, imageUrl, dataUrl });
-
-  const translatedBlocks = [];
-  for (const block of ocrBlocks) {
-    const translated = await translateText(block.text, config);
-    translatedBlocks.push({ ...block, translated });
+  let ocrBlocks = [];
+  if (config.ocr.provider === "browser") {
+    ocrBlocks = Array.isArray(browserOcrBlocks) ? browserOcrBlocks : [];
+    if (!ocrBlocks.length) {
+      ocrBlocks = await runOcrSpace(config, { imageUrl, dataUrl });
+    }
+  } else {
+    ocrBlocks = await runOcr({ config, imageUrl, dataUrl });
   }
+  const translatedTexts = await translateBlocksWithContext(ocrBlocks, config);
+  const translatedBlocks = ocrBlocks.map((block, idx) => ({
+    ...block,
+    translated: translatedTexts[idx] || ""
+  }));
 
   return { blocks: translatedBlocks };
 }
 
 async function runOcr({ config, imageUrl, dataUrl, testMode = false }) {
   const provider = config.ocr.provider;
+  if (provider === "browser") {
+    return runOcrSpace(config, { imageUrl, dataUrl });
+  }
   if (provider === "ocrspace") {
-    return runOcrSpace(config, imageUrl);
+    return runOcrSpace(config, { imageUrl, dataUrl });
   }
 
   if (provider === "custom") {
@@ -78,10 +93,14 @@ async function runOcr({ config, imageUrl, dataUrl, testMode = false }) {
   throw new Error(`Unsupported OCR provider: ${provider}`);
 }
 
-async function runOcrSpace(config, imageUrl) {
+async function runOcrSpace(config, { imageUrl, dataUrl }) {
   const body = new FormData();
   body.append("apikey", config.ocr.ocrSpaceApiKey);
-  body.append("url", imageUrl);
+  if (dataUrl) {
+    body.append("base64Image", dataUrl);
+  } else {
+    body.append("url", imageUrl);
+  }
   body.append("language", "eng");
   body.append("isOverlayRequired", "true");
   body.append("OCREngine", "2");
@@ -385,4 +404,65 @@ function getByPath(obj, path) {
 
 function stripDataUrlPrefix(dataUrl) {
   return String(dataUrl || "").replace(/^data:.+;base64,/, "");
+}
+
+async function fetchImageAsDataUrl({ imageUrl, pageUrl }) {
+  if (!imageUrl) throw new Error("imageUrl is required");
+  const response = await fetch(imageUrl, {
+    credentials: "include",
+    referrer: pageUrl || undefined
+  });
+  if (!response.ok) {
+    throw new Error(`Image fetch failed: ${response.status}`);
+  }
+  const blob = await response.blob();
+  return blobToDataUrl(blob);
+}
+
+async function blobToDataUrl(blob) {
+  const buffer = await blob.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 32768;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  const base64 = btoa(binary);
+  const mime = blob.type || "image/png";
+  return `data:${mime};base64,${base64}`;
+}
+
+async function translateBlocksWithContext(blocks, config) {
+  if (!blocks.length) return [];
+
+  if (blocks.length === 1) {
+    return [await translateText(blocks[0].text, config)];
+  }
+
+  const markerLines = blocks.map((block, idx) => `[${idx + 1}] ${block.text}`);
+  const merged = markerLines.join("\n");
+  const mergedTranslated = await translateText(merged, config);
+  const parsed = parseIndexedTranslations(mergedTranslated, blocks.length);
+  if (parsed.length === blocks.length) return parsed;
+
+  const translatedBlocks = [];
+  for (const block of blocks) {
+    translatedBlocks.push(await translateText(block.text, config));
+  }
+  return translatedBlocks;
+}
+
+function parseIndexedTranslations(text, expectedCount) {
+  const result = new Array(expectedCount).fill("");
+  const regex = /^\s*\[(\d+)\]\s*(.+)$/gm;
+  let match = regex.exec(text);
+  while (match) {
+    const index = Number(match[1]) - 1;
+    if (index >= 0 && index < expectedCount) {
+      result[index] = match[2].trim();
+    }
+    match = regex.exec(text);
+  }
+  return result.filter(Boolean).length === expectedCount ? result : [];
 }

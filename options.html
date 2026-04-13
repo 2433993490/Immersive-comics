@@ -349,10 +349,14 @@
             <h3>OCR 源</h3>
             <label for="ocrProvider">OCR 提供方</label>
             <select id="ocrProvider">
-              <option value="ocrspace">OCR.Space (默认)</option>
+              <option value="browser">浏览器 OCR（默认，Chrome/Edge）</option>
+              <option value="ocrspace">OCR.Space</option>
               <option value="baiduOcr">百度 OCR（内置）</option>
               <option value="custom">Custom</option>
             </select>
+            <div id="browserOcrFields">
+              <p class="provider-tip">优先使用浏览器内置文字识别（TextDetector）。若当前浏览器不支持，将自动回退到 OCR.Space。</p>
+            </div>
             <div id="ocrSpaceFields">
               <label for="ocrSpaceKey">OCR.Space Key</label>
               <input id="ocrSpaceKey" />
