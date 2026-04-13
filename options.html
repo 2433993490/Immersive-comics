@@ -5,167 +5,360 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Comic Translator Settings</title>
     <style>
+      :root {
+        --bg: #f3f4f6;
+        --panel: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --pink: #ec4899;
+        --pink-dark: #db2777;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         margin: 0;
+        background: var(--bg);
+        color: var(--text);
         padding: 24px;
-        background: #020617;
-        color: #e2e8f0;
       }
-      h1 {
-        margin-top: 0;
+
+      .page {
+        max-width: 1220px;
+        margin: 0 auto;
       }
-      .card {
-        background: #0f172a;
-        border: 1px solid #1e293b;
+
+      .title {
+        margin: 0 0 8px;
+        font-size: 26px;
+        font-weight: 700;
+      }
+
+      .subtitle {
+        margin: 0 0 20px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 320px minmax(0, 1fr);
+        gap: 0;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        background: var(--panel);
+      }
+
+      .sidebar {
+        border-right: 1px solid var(--border);
+        background: #fafafa;
+      }
+
+      .sidebar-header {
+        padding: 18px 18px 10px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .provider-list {
+        padding: 4px 8px 12px;
+        max-height: 760px;
+        overflow: auto;
+      }
+
+      .provider-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        border: none;
+        border-radius: 10px;
+        background: transparent;
+        padding: 10px 12px;
+        margin-bottom: 4px;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .provider-item:hover {
+        background: #f3f4f6;
+      }
+
+      .provider-item.active {
+        background: #fff1f8;
+      }
+
+      .provider-name {
+        font-size: 15px;
+      }
+
+      .switch {
+        width: 36px;
+        height: 20px;
+        border-radius: 999px;
+        background: #d1d5db;
+        position: relative;
+        flex: 0 0 auto;
+        transition: 0.2s;
+      }
+
+      .switch::after {
+        content: "";
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #fff;
+        position: absolute;
+        left: 3px;
+        top: 3px;
+        transition: 0.2s;
+      }
+
+      .provider-item.active .switch {
+        background: var(--pink);
+      }
+
+      .provider-item.active .switch::after {
+        left: 19px;
+      }
+
+      .content {
+        padding: 20px 24px 18px;
+      }
+
+      .content-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 30px;
+      }
+
+      .provider-tip {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 2px 0 0;
+      }
+
+      .link {
+        color: var(--pink-dark);
+        text-decoration: none;
+        font-size: 14px;
+      }
+
+      .link:hover {
+        text-decoration: underline;
+      }
+
+      .section {
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 16px;
-        margin-bottom: 16px;
+        margin-bottom: 12px;
       }
+
+      .section h3 {
+        margin: 0 0 14px;
+        font-size: 16px;
+      }
+
       label {
         display: block;
         margin-bottom: 6px;
         font-size: 13px;
-        color: #cbd5e1;
+        color: #374151;
       }
+
       input,
       select,
       textarea {
         width: 100%;
-        border: 1px solid #334155;
+        border: 1px solid #cbd5e1;
         border-radius: 8px;
-        background: #020617;
-        color: #e2e8f0;
-        padding: 8px;
+        background: #fff;
+        color: #111827;
+        padding: 10px;
         margin-bottom: 10px;
         font-size: 13px;
-        box-sizing: border-box;
       }
+
       textarea {
         min-height: 78px;
         resize: vertical;
       }
+
       .row {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 10px;
       }
+
+      .inline-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 4px 0 10px;
+      }
+
+      .inline-check input {
+        width: auto;
+        margin: 0;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
       button {
         border: none;
         border-radius: 10px;
         padding: 10px 14px;
-        background: linear-gradient(135deg, #2563eb, #7c3aed);
+        background: linear-gradient(135deg, #ec4899, #a855f7);
         color: white;
         font-weight: 600;
         cursor: pointer;
       }
+
       #msg {
-        margin-left: 10px;
-        color: #22c55e;
+        font-size: 14px;
+        color: #16a34a;
+      }
+
+      @media (max-width: 920px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+
+        .provider-list {
+          max-height: 230px;
+        }
+
+        .row {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <h1>漫画翻译设置</h1>
+    <div class="page">
+      <h1 class="title">翻译服务列表</h1>
+      <p class="subtitle">布局参考沉浸式翻译：左侧选择服务，右侧编辑对应配置。</p>
 
-    <div class="card">
-      <h3>通用语言</h3>
-      <div class="row">
-        <div>
-          <label for="sourceLang">源语言</label>
-          <input id="sourceLang" placeholder="auto / en / ja" />
-        </div>
-        <div>
-          <label for="targetLang">目标语言</label>
-          <input id="targetLang" placeholder="zh-CN" />
-        </div>
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="sidebar-header">翻译服务</div>
+          <div id="providerList" class="provider-list"></div>
+        </aside>
+
+        <main class="content">
+          <div class="content-top">
+            <div>
+              <h2 id="activeProviderTitle">Google</h2>
+              <p class="provider-tip">可在下方配置接口地址、请求头和返回路径。</p>
+            </div>
+            <a class="link" href="#">点击测试服务</a>
+          </div>
+
+          <input id="translatorProvider" type="hidden" />
+
+          <div class="section">
+            <h3>通用语言</h3>
+            <div class="row">
+              <div>
+                <label for="sourceLang">源语言</label>
+                <input id="sourceLang" placeholder="auto / en / ja" />
+              </div>
+              <div>
+                <label for="targetLang">目标语言</label>
+                <input id="targetLang" placeholder="zh-CN" />
+              </div>
+            </div>
+          </div>
+
+          <div class="section" id="translateApiSection">
+            <h3>翻译 API</h3>
+            <p id="builtInProviderHint" class="provider-tip" style="display:none; margin-bottom:12px;">当前翻译源为内置免设置服务（谷歌/微软），无需填写下列接口参数。</p>
+            <label for="customTranslateEndpoint">自定义 API 接口地址</label>
+            <input id="customTranslateEndpoint" placeholder="https://..." />
+            <label for="customTranslateHeaders">自定义请求头（每行 Key: Value）</label>
+            <textarea id="customTranslateHeaders"></textarea>
+            <label for="customTranslateBody">自定义 Body 模板</label>
+            <textarea id="customTranslateBody"></textarea>
+            <label for="customTranslatePath">自定义 Response Path</label>
+            <input id="customTranslatePath" placeholder="data.translation" />
+          </div>
+
+          <div class="section">
+            <h3>AI 大模型 API（可选）</h3>
+            <label class="inline-check">
+              <input id="aiEnabled" type="checkbox" /> 启用 AI 润色
+            </label>
+            <label for="aiEndpoint">AI Endpoint</label>
+            <input id="aiEndpoint" placeholder="https://..." />
+            <div class="row">
+              <div>
+                <label for="aiKey">AI API Key</label>
+                <input id="aiKey" type="password" />
+              </div>
+              <div>
+                <label for="aiModel">AI Model</label>
+                <input id="aiModel" placeholder="gpt-4o-mini / qwen-max ..." />
+              </div>
+            </div>
+            <label for="aiHeaders">AI Headers</label>
+            <textarea id="aiHeaders"></textarea>
+            <label for="aiPrompt">Prompt Template</label>
+            <textarea id="aiPrompt"></textarea>
+            <label for="aiBody">Body Template</label>
+            <textarea id="aiBody"></textarea>
+            <label for="aiPath">Response Path</label>
+            <input id="aiPath" placeholder="choices.0.message.content" />
+          </div>
+
+          <div class="section">
+            <h3>OCR 源</h3>
+            <label for="ocrProvider">OCR 提供方</label>
+            <select id="ocrProvider">
+              <option value="ocrspace">OCR.Space (默认)</option>
+              <option value="custom">Custom</option>
+            </select>
+            <label for="ocrSpaceKey">OCR.Space Key</label>
+            <input id="ocrSpaceKey" />
+
+            <label for="customOcrEndpoint">Custom OCR Endpoint</label>
+            <input id="customOcrEndpoint" placeholder="https://..." />
+            <label for="customOcrHeaders">Custom OCR Headers</label>
+            <textarea id="customOcrHeaders"></textarea>
+            <label for="customOcrBody">Custom OCR Body Template</label>
+            <textarea id="customOcrBody"></textarea>
+            <label for="customOcrPath">Custom OCR Response Path（需返回数组）</label>
+            <input id="customOcrPath" placeholder="data.lines" />
+          </div>
+
+          <div class="actions">
+            <button id="saveBtn">保存设置</button><span id="msg"></span>
+          </div>
+        </main>
       </div>
     </div>
-
-    <div class="card">
-      <h3>翻译 API</h3>
-      <label for="translatorProvider">翻译提供方</label>
-      <select id="translatorProvider">
-        <option value="google">Google (默认)</option>
-        <option value="claude">Claude</option>
-        <option value="deepl">Deepl</option>
-        <option value="deepseek">DeepSeek</option>
-        <option value="gemini">Gemini</option>
-        <option value="openl">OpenL</option>
-        <option value="azureOpenai">Open AI (Azure OpenAI)</option>
-        <option value="azureTranslator">微软 Azure 翻译</option>
-        <option value="aliyunBailian">阿里云百炼大模型</option>
-        <option value="qwenMt">Qwen-MT</option>
-        <option value="aliyunTranslate">阿里云翻译</option>
-        <option value="baiduQianfan">百度千帆大模型</option>
-        <option value="doubao">字节跳动豆包大模型</option>
-        <option value="baiduTranslate">百度翻译</option>
-        <option value="caiyun">彩云小译</option>
-        <option value="volcengine">火山引擎</option>
-        <option value="tencentTransmart">腾讯翻译君</option>
-        <option value="niutrans">小牛翻译</option>
-        <option value="youdao">有道翻译</option>
-        <option value="youdaoLlm">有道子曰大模型翻译</option>
-        <option value="custom">自定义接口翻译</option>
-      </select>
-      <label for="customTranslateEndpoint">Custom Endpoint</label>
-      <input id="customTranslateEndpoint" placeholder="https://..." />
-      <label for="customTranslateHeaders">Custom Headers (每行 Key: Value)</label>
-      <textarea id="customTranslateHeaders"></textarea>
-      <label for="customTranslateBody">Custom Body Template</label>
-      <textarea id="customTranslateBody"></textarea>
-      <label for="customTranslatePath">Custom Response Path</label>
-      <input id="customTranslatePath" placeholder="data.translation" />
-    </div>
-
-    <div class="card">
-      <h3>AI 大模型 API（可选）</h3>
-      <label>
-        <input id="aiEnabled" type="checkbox" style="width:auto; margin-right:6px;" /> 启用 AI 润色
-      </label>
-      <label for="aiEndpoint">AI Endpoint</label>
-      <input id="aiEndpoint" placeholder="https://..." />
-      <div class="row">
-        <div>
-          <label for="aiKey">AI API Key</label>
-          <input id="aiKey" type="password" />
-        </div>
-        <div>
-          <label for="aiModel">AI Model</label>
-          <input id="aiModel" placeholder="gpt-4o-mini / qwen-max ..." />
-        </div>
-      </div>
-      <label for="aiHeaders">AI Headers</label>
-      <textarea id="aiHeaders"></textarea>
-      <label for="aiPrompt">Prompt Template</label>
-      <textarea id="aiPrompt"></textarea>
-      <label for="aiBody">Body Template</label>
-      <textarea id="aiBody"></textarea>
-      <label for="aiPath">Response Path</label>
-      <input id="aiPath" placeholder="choices.0.message.content" />
-    </div>
-
-    <div class="card">
-      <h3>OCR 源</h3>
-      <label for="ocrProvider">OCR 提供方</label>
-      <select id="ocrProvider">
-        <option value="ocrspace">OCR.Space (默认)</option>
-        <option value="custom">Custom</option>
-      </select>
-      <label for="ocrSpaceKey">OCR.Space Key</label>
-      <input id="ocrSpaceKey" />
-
-      <label for="customOcrEndpoint">Custom OCR Endpoint</label>
-      <input id="customOcrEndpoint" placeholder="https://..." />
-      <label for="customOcrHeaders">Custom OCR Headers</label>
-      <textarea id="customOcrHeaders"></textarea>
-      <label for="customOcrBody">Custom OCR Body Template</label>
-      <textarea id="customOcrBody"></textarea>
-      <label for="customOcrPath">Custom OCR Response Path（需返回数组）</label>
-      <input id="customOcrPath" placeholder="data.lines" />
-    </div>
-
-    <button id="saveBtn">保存设置</button><span id="msg"></span>
 
     <script type="module" src="options.js"></script>
   </body>
