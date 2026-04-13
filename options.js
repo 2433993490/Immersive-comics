@@ -157,6 +157,17 @@ const PROVIDER_LABELS = {
 };
 const PROVIDER_ORDER = ["google", "azureTranslator", ...Object.keys(BUILTIN_TRANSLATOR_PRESETS), "custom"];
 const BUILTIN_NO_SETUP_PROVIDERS = new Set(["google", "azureTranslator"]);
+const MODEL_PROVIDERS = new Set([
+  "claude",
+  "deepseek",
+  "gemini",
+  "azureOpenai",
+  "aliyunBailian",
+  "qwenMt",
+  "baiduQianfan",
+  "doubao"
+]);
+let providerConfigs = {};
 
 
 init();
@@ -166,12 +177,16 @@ async function init() {
   bind(config);
 
   $("saveBtn")?.addEventListener("click", async () => {
+    persistCurrentProviderConfig();
     const next = collect();
     await saveConfig(next);
     const msg = $("msg");
     msg.textContent = "已保存";
     setTimeout(() => (msg.textContent = ""), 1800);
   });
+
+  $("testProviderBtn")?.addEventListener("click", testProviderConnection);
+  $("ocrProvider")?.addEventListener("change", updateOcrSection);
 }
 
 function bind(config) {
@@ -179,31 +194,14 @@ function bind(config) {
   $("targetLang").value = config.targetLang;
 
   $("translatorProvider").value = config.translator.provider;
-  $("customTranslateEndpoint").value = config.translator.custom.endpoint;
-  $("customTranslateHeaders").value = config.translator.custom.headers;
-  $("customTranslateBody").value = config.translator.custom.bodyTemplate;
-  $("customTranslatePath").value = config.translator.custom.responsePath;
+  providerConfigs = structuredClone(config.translator.providerConfigs || {});
 
-  if (
-    config.translator.provider !== "google" &&
-    config.translator.provider !== "custom" &&
-    !config.translator.custom.endpoint
-  ) {
-    const preset = BUILTIN_TRANSLATOR_PRESETS[config.translator.provider];
-    if (preset) applyPresetToForm(preset);
-  }
-
-  $("aiEnabled").checked = config.ai.enabled;
-  $("aiEndpoint").value = config.ai.endpoint;
-  $("aiKey").value = config.ai.apiKey;
-  $("aiModel").value = config.ai.model;
-  $("aiHeaders").value = config.ai.headers;
-  $("aiPrompt").value = config.ai.promptTemplate;
-  $("aiBody").value = config.ai.bodyTemplate;
-  $("aiPath").value = config.ai.responsePath;
+  hydrateProviderConfig(config.translator.provider, config.translator.custom);
 
   $("ocrProvider").value = config.ocr.provider;
   $("ocrSpaceKey").value = config.ocr.ocrSpaceApiKey;
+  $("baiduOcrEndpoint").value = config.ocr.baiduOcrEndpoint || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic";
+  $("baiduOcrToken").value = config.ocr.baiduOcrAccessToken || "";
   $("customOcrEndpoint").value = config.ocr.custom.endpoint;
   $("customOcrHeaders").value = config.ocr.custom.headers;
   $("customOcrBody").value = config.ocr.custom.bodyTemplate;
@@ -212,37 +210,33 @@ function bind(config) {
   renderProviderList();
   updateProviderHeader();
   updateTranslateApiSection();
+  updateOcrSection();
 }
 
 function collect() {
+  const provider = $("translatorProvider").value;
+  const currentCfg = providerConfigs[provider] || {};
   return {
     sourceLang: $("sourceLang").value.trim() || "auto",
     targetLang: $("targetLang").value.trim() || "zh-CN",
     translator: {
-      provider: $("translatorProvider").value,
+      provider,
       googleEndpoint: "https://translate.googleapis.com/translate_a/single",
       azureTranslatorEndpoint: "https://api-edge.cognitive.microsofttranslator.com/translate?api-version=3.0",
+      providerConfigs,
       custom: {
-        endpoint: $("customTranslateEndpoint").value.trim(),
-        headers: $("customTranslateHeaders").value,
-        bodyTemplate: $("customTranslateBody").value,
-        responsePath: $("customTranslatePath").value.trim()
+        endpoint: currentCfg.endpoint || $("customTranslateEndpoint").value.trim(),
+        headers: currentCfg.headers || $("customTranslateHeaders").value,
+        bodyTemplate: currentCfg.bodyTemplate || $("customTranslateBody").value,
+        responsePath: currentCfg.responsePath || $("customTranslatePath").value.trim()
       }
-    },
-    ai: {
-      enabled: $("aiEnabled").checked,
-      endpoint: $("aiEndpoint").value.trim(),
-      apiKey: $("aiKey").value.trim(),
-      model: $("aiModel").value.trim(),
-      headers: $("aiHeaders").value,
-      promptTemplate: $("aiPrompt").value,
-      bodyTemplate: $("aiBody").value,
-      responsePath: $("aiPath").value.trim()
     },
     ocr: {
       provider: $("ocrProvider").value,
       ocrSpaceEndpoint: "https://api.ocr.space/parse/image",
       ocrSpaceApiKey: $("ocrSpaceKey").value.trim() || "helloworld",
+      baiduOcrEndpoint: $("baiduOcrEndpoint").value.trim() || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic",
+      baiduOcrAccessToken: $("baiduOcrToken").value.trim(),
       custom: {
         endpoint: $("customOcrEndpoint").value.trim(),
         headers: $("customOcrHeaders").value,
@@ -258,28 +252,58 @@ function collect() {
 }
 
 function onTranslatorProviderChange(provider) {
+  persistCurrentProviderConfig();
   $("translatorProvider").value = provider;
-  if (BUILTIN_NO_SETUP_PROVIDERS.has(provider) || provider === "custom") {
-    renderProviderList();
-    updateProviderHeader();
-    updateTranslateApiSection();
-    return;
-  }
-
-  const preset = BUILTIN_TRANSLATOR_PRESETS[provider];
-  if (!preset) return;
-
-  applyPresetToForm(preset);
+  hydrateProviderConfig(provider);
   renderProviderList();
   updateProviderHeader();
   updateTranslateApiSection();
 }
 
-function applyPresetToForm(preset) {
-  $("customTranslateEndpoint").value = preset.endpoint;
-  $("customTranslateHeaders").value = preset.headers;
-  $("customTranslateBody").value = preset.bodyTemplate;
-  $("customTranslatePath").value = preset.responsePath;
+function hydrateProviderConfig(provider, fallbackCustom = null) {
+  const preset = BUILTIN_TRANSLATOR_PRESETS[provider];
+  const fromStore = providerConfigs[provider];
+  const fallback = fallbackCustom || {};
+  const cfg = fromStore || (preset ? ({
+    endpoint: preset.endpoint,
+    headers: preset.headers,
+    bodyTemplate: preset.bodyTemplate,
+    responsePath: preset.responsePath,
+    apiKey: "",
+    model: ""
+  }) : fallback);
+
+  $("providerEndpoint").value = cfg.endpoint || "";
+  $("providerApiKey").value = cfg.apiKey || "";
+  $("providerModel").value = cfg.model || "";
+  $("customTranslateEndpoint").value = cfg.endpoint || "";
+  $("customTranslateHeaders").value = cfg.headers || "Content-Type: application/json";
+  $("customTranslateBody").value = cfg.bodyTemplate || "{\n  \"text\": \"{{text}}\",\n  \"target\": \"{{targetLang}}\"\n}";
+  $("customTranslatePath").value = cfg.responsePath || "data.translation";
+}
+
+function persistCurrentProviderConfig() {
+  const provider = $("translatorProvider").value;
+  if (!provider) return;
+
+  let bodyTemplate = $("customTranslateBody").value;
+  if (MODEL_PROVIDERS.has(provider) && $("providerModel").value.trim()) {
+    bodyTemplate = bodyTemplate.replace(/"model"\s*:\s*"[^"]*"/, `"model": "${$("providerModel").value.trim()}"`);
+  }
+
+  const cfg = {
+    endpoint: $("providerEndpoint").value.trim() || $("customTranslateEndpoint").value.trim(),
+    apiKey: $("providerApiKey").value.trim(),
+    model: $("providerModel").value.trim(),
+    headers: injectApiKey($("customTranslateHeaders").value, $("providerApiKey").value.trim()),
+    bodyTemplate,
+    responsePath: $("customTranslatePath").value.trim()
+  };
+  providerConfigs[provider] = cfg;
+
+  $("customTranslateEndpoint").value = cfg.endpoint;
+  $("customTranslateHeaders").value = cfg.headers;
+  $("customTranslateBody").value = cfg.bodyTemplate;
 }
 
 function renderProviderList() {
@@ -310,11 +334,18 @@ function updateTranslateApiSection() {
   if (!hint) return;
 
   const isBuiltIn = BUILTIN_NO_SETUP_PROVIDERS.has(provider);
+  const isCustom = provider === "custom";
   hint.style.display = isBuiltIn ? "block" : "none";
+  $("modelFieldWrap").style.display = MODEL_PROVIDERS.has(provider) ? "block" : "none";
+
+  ["providerEndpoint", "providerApiKey", "providerModel", "testProviderBtn"].forEach((id) => {
+    const node = $(id);
+    if (node) node.disabled = isBuiltIn || isCustom;
+  });
 
   ["customTranslateEndpoint", "customTranslateHeaders", "customTranslateBody", "customTranslatePath"].forEach((id) => {
     const node = $(id);
-    if (node) node.disabled = isBuiltIn;
+    if (node) node.disabled = isBuiltIn || !isCustom;
   });
 }
 
@@ -324,3 +355,38 @@ function updateProviderHeader() {
   if (el) el.textContent = PROVIDER_LABELS[provider] || provider;
 }
 
+function injectApiKey(headers, apiKey) {
+  if (!apiKey) return headers;
+  return String(headers || "")
+    .replace("<YOUR_API_KEY>", apiKey)
+    .replace("{key}", apiKey);
+}
+
+async function testProviderConnection() {
+  persistCurrentProviderConfig();
+  const resultNode = $("testProviderResult");
+  resultNode.textContent = "测试中...";
+  const next = collect();
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "TEST_TRANSLATOR",
+      payload: { config: next }
+    });
+    if (!response?.ok) throw new Error(response?.error || "测试失败");
+    resultNode.textContent = `成功：${response.result}`;
+  } catch (error) {
+    resultNode.textContent = `失败：${error.message || error}`;
+  }
+}
+
+function updateOcrSection() {
+  const provider = $("ocrProvider").value || "ocrspace";
+  const show = (id, visible) => {
+    const el = $(id);
+    if (el) el.style.display = visible ? "block" : "none";
+  };
+
+  show("ocrSpaceFields", provider === "ocrspace");
+  show("baiduOcrFields", provider === "baiduOcr");
+  show("customOcrFields", provider === "custom");
+}

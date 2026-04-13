@@ -20,6 +20,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true });
         return;
       }
+      if (message.type === "TEST_TRANSLATOR") {
+        const result = await translateText("Hello world", message.payload.config || (await getConfig()));
+        sendResponse({ ok: true, result });
+        return;
+      }
       sendResponse({ ok: false, error: "Unknown message type" });
     } catch (error) {
       sendResponse({ ok: false, error: error.message || String(error) });
@@ -36,8 +41,7 @@ async function processImage({ imageUrl, dataUrl }) {
   const translatedBlocks = [];
   for (const block of ocrBlocks) {
     const translated = await translateText(block.text, config);
-    const refined = config.ai.enabled ? await runAiRefine(translated, config) : translated;
-    translatedBlocks.push({ ...block, translated: refined });
+    translatedBlocks.push({ ...block, translated });
   }
 
   return { blocks: translatedBlocks };
@@ -51,6 +55,9 @@ async function runOcr({ config, imageUrl, dataUrl }) {
 
   if (provider === "custom") {
     return runCustomOcr(config, imageUrl, dataUrl);
+  }
+  if (provider === "baiduOcr") {
+    return runBaiduOcr(config, dataUrl);
   }
 
   throw new Error(`Unsupported OCR provider: ${provider}`);
@@ -138,6 +145,49 @@ async function runCustomOcr(config, imageUrl, dataUrl) {
     }));
 }
 
+async function runBaiduOcr(config, dataUrl) {
+  const token = config.ocr.baiduOcrAccessToken;
+  if (!token) {
+    throw new Error("Baidu OCR access token is empty");
+  }
+
+  const endpoint = config.ocr.baiduOcrEndpoint || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic";
+  const url = `${endpoint}${endpoint.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(token)}`;
+  const body = new URLSearchParams({
+    image: stripDataUrlPrefix(dataUrl)
+  });
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: body.toString()
+  });
+
+  if (!response.ok) {
+    throw new Error(`Baidu OCR request failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (data.error_code) {
+    throw new Error(data.error_msg || `Baidu OCR error: ${data.error_code}`);
+  }
+
+  const lines = Array.isArray(data.words_result) ? data.words_result : [];
+  return lines
+    .map((item, index) => ({
+      text: String(item.words || "").trim(),
+      box: {
+        x: 8,
+        y: 8 + index * 26,
+        width: 320,
+        height: 24
+      }
+    }))
+    .filter((line) => line.text.length > 0);
+}
+
 async function translateText(text, config) {
   if (!text) return "";
 
@@ -181,12 +231,13 @@ async function translateText(text, config) {
   }
 
   if (config.translator.provider !== "google") {
-    const endpoint = config.translator.custom.endpoint;
+    const providerConfig = config.translator.providerConfigs?.[config.translator.provider];
+    const endpoint = providerConfig?.endpoint || config.translator.custom.endpoint;
     if (!endpoint) {
       throw new Error("Custom translator endpoint is empty");
     }
 
-    const payload = applyTemplate(config.translator.custom.bodyTemplate, {
+    const payload = applyTemplate(providerConfig?.bodyTemplate || config.translator.custom.bodyTemplate, {
       text,
       sourceLang: config.sourceLang || "auto",
       targetLang: config.targetLang || "zh-CN"
@@ -194,7 +245,7 @@ async function translateText(text, config) {
 
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: parseHeaders(config.translator.custom.headers),
+      headers: parseHeaders(providerConfig?.headers || config.translator.custom.headers),
       body: payload
     });
 
@@ -203,7 +254,7 @@ async function translateText(text, config) {
     }
 
     const data = await response.json();
-    const translated = getByPath(data, config.translator.custom.responsePath);
+    const translated = getByPath(data, providerConfig?.responsePath || config.translator.custom.responsePath);
     if (!translated) {
       throw new Error("Translator responsePath produced empty result");
     }
@@ -212,37 +263,6 @@ async function translateText(text, config) {
   }
 
   throw new Error(`Unsupported translator provider: ${config.translator.provider}`);
-}
-
-async function runAiRefine(text, config) {
-  const endpoint = config.ai.endpoint;
-  if (!endpoint) return text;
-
-  const prompt = applyTemplate(config.ai.promptTemplate, { text });
-  const payload = applyTemplate(config.ai.bodyTemplate, {
-    model: config.ai.model,
-    prompt,
-    text
-  });
-
-  const headers = {
-    ...parseHeaders(config.ai.headers),
-    ...(config.ai.apiKey ? { Authorization: `Bearer ${config.ai.apiKey}` } : {})
-  };
-
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers,
-    body: payload
-  });
-
-  if (!response.ok) {
-    return text;
-  }
-
-  const data = await response.json();
-  const refined = getByPath(data, config.ai.responsePath);
-  return refined ? String(refined).trim() : text;
 }
 
 function parseHeaders(raw) {

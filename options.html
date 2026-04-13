@@ -237,6 +237,18 @@
         color: #16a34a;
       }
 
+      .test-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 8px;
+      }
+
+      .test-result {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
       @media (max-width: 920px) {
         .layout {
           grid-template-columns: 1fr;
@@ -296,6 +308,23 @@
           <div class="section" id="translateApiSection">
             <h3>翻译 API</h3>
             <p id="builtInProviderHint" class="provider-tip" style="display:none; margin-bottom:12px;">当前翻译源为内置免设置服务（谷歌/微软），无需填写下列接口参数。</p>
+            <label for="providerEndpoint">接口链接</label>
+            <input id="providerEndpoint" placeholder="https://..." />
+            <div class="row">
+              <div>
+                <label for="providerApiKey">API Key</label>
+                <input id="providerApiKey" type="password" placeholder="可选" />
+              </div>
+              <div id="modelFieldWrap">
+                <label for="providerModel">模型</label>
+                <input id="providerModel" placeholder="gpt-4o-mini / qwen-plus ..." />
+              </div>
+            </div>
+            <div class="test-row">
+              <button id="testProviderBtn" type="button">连通性测试</button>
+              <span id="testProviderResult" class="test-result"></span>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;" />
             <label for="customTranslateEndpoint">自定义 API 接口地址</label>
             <input id="customTranslateEndpoint" placeholder="https://..." />
             <label for="customTranslateHeaders">自定义请求头（每行 Key: Value）</label>
@@ -307,50 +336,35 @@
           </div>
 
           <div class="section">
-            <h3>AI 大模型 API（可选）</h3>
-            <label class="inline-check">
-              <input id="aiEnabled" type="checkbox" /> 启用 AI 润色
-            </label>
-            <label for="aiEndpoint">AI Endpoint</label>
-            <input id="aiEndpoint" placeholder="https://..." />
-            <div class="row">
-              <div>
-                <label for="aiKey">AI API Key</label>
-                <input id="aiKey" type="password" />
-              </div>
-              <div>
-                <label for="aiModel">AI Model</label>
-                <input id="aiModel" placeholder="gpt-4o-mini / qwen-max ..." />
-              </div>
-            </div>
-            <label for="aiHeaders">AI Headers</label>
-            <textarea id="aiHeaders"></textarea>
-            <label for="aiPrompt">Prompt Template</label>
-            <textarea id="aiPrompt"></textarea>
-            <label for="aiBody">Body Template</label>
-            <textarea id="aiBody"></textarea>
-            <label for="aiPath">Response Path</label>
-            <input id="aiPath" placeholder="choices.0.message.content" />
-          </div>
-
-          <div class="section">
             <h3>OCR 源</h3>
             <label for="ocrProvider">OCR 提供方</label>
             <select id="ocrProvider">
               <option value="ocrspace">OCR.Space (默认)</option>
+              <option value="baiduOcr">百度 OCR（内置）</option>
               <option value="custom">Custom</option>
             </select>
-            <label for="ocrSpaceKey">OCR.Space Key</label>
-            <input id="ocrSpaceKey" />
+            <div id="ocrSpaceFields">
+              <label for="ocrSpaceKey">OCR.Space Key</label>
+              <input id="ocrSpaceKey" />
+            </div>
+            <div id="baiduOcrFields">
+              <label for="baiduOcrEndpoint">百度 OCR 接口地址</label>
+              <input id="baiduOcrEndpoint" placeholder="https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic" />
+              <label for="baiduOcrToken">百度 OCR Access Token</label>
+              <input id="baiduOcrToken" type="password" placeholder="填入 access_token" />
+              <p class="provider-tip">Access Token 可参考百度 OCR 文档获取。</p>
+            </div>
 
-            <label for="customOcrEndpoint">Custom OCR Endpoint</label>
-            <input id="customOcrEndpoint" placeholder="https://..." />
-            <label for="customOcrHeaders">Custom OCR Headers</label>
-            <textarea id="customOcrHeaders"></textarea>
-            <label for="customOcrBody">Custom OCR Body Template</label>
-            <textarea id="customOcrBody"></textarea>
-            <label for="customOcrPath">Custom OCR Response Path（需返回数组）</label>
-            <input id="customOcrPath" placeholder="data.lines" />
+            <div id="customOcrFields">
+              <label for="customOcrEndpoint">Custom OCR Endpoint</label>
+              <input id="customOcrEndpoint" placeholder="https://..." />
+              <label for="customOcrHeaders">Custom OCR Headers</label>
+              <textarea id="customOcrHeaders"></textarea>
+              <label for="customOcrBody">Custom OCR Body Template</label>
+              <textarea id="customOcrBody"></textarea>
+              <label for="customOcrPath">Custom OCR Response Path（需返回数组）</label>
+              <input id="customOcrPath" placeholder="data.lines" />
+            </div>
           </div>
 
           <div class="actions">
