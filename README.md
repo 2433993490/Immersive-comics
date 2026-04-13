@@ -5,7 +5,7 @@
 ## 功能
 
 - 自动扫描页面中的漫画图片（可在 Popup 中一键扫描）。
-- 默认使用 Google Translate（无需 API Key）。
+- 默认使用腾讯翻译君（Transmart）免配置源，Google/微软可在设置中手动切换。
 - Popup 布局参考沉浸式翻译（语言切换 / 翻译服务 / 一键翻译）。
 - 支持按翻译服务分别保存 API 配置（Endpoint / API Key / 模型 / 模板）。
 - 支持自定义 OCR 源（内置 OCR.Space + 自定义 OCR API）。
@@ -40,7 +40,7 @@
   - `custom`（自定义 REST 接口）
 - **OCR 源**
   - `ocrspace`（默认，使用 OCR.Space）
-  - `baiduOcr`（内置百度 OCR，需配置 Access Token）
+  - `baiduOcr`（内置百度 OCR，支持 Access Token 或 API Key + Secret Key 自动换 token）
   - `custom`（自定义 OCR REST 接口）
 
 ### 自定义接口模板变量

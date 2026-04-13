@@ -2,7 +2,7 @@ export const DEFAULT_CONFIG = {
   targetLang: "zh-CN",
   sourceLang: "auto",
   translator: {
-    provider: "google",
+    provider: "tencentTransmart",
     googleEndpoint: "https://translate.googleapis.com/translate_a/single",
     azureTranslatorEndpoint: "https://api-edge.cognitive.microsofttranslator.com/translate?api-version=3.0",
     providerConfigs: {},
@@ -19,6 +19,8 @@ export const DEFAULT_CONFIG = {
     ocrSpaceApiKey: "helloworld",
     baiduOcrEndpoint: "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic",
     baiduOcrAccessToken: "",
+    baiduOcrApiKey: "",
+    baiduOcrSecretKey: "",
     custom: {
       endpoint: "",
       headers: "Content-Type: application/json",

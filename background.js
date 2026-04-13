@@ -1,5 +1,7 @@
 import { DEFAULT_CONFIG, getConfig } from "./config.js";
 
+const baiduOcrTokenCache = new Map();
+
 chrome.runtime.onInstalled.addListener(async () => {
   const existing = await chrome.storage.sync.get(["comicTranslatorConfig"]);
   if (!existing.comicTranslatorConfig) {
@@ -29,7 +31,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const config = message.payload.config || (await getConfig());
         const testDataUrl =
           "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
-        const result = await runOcr({ config, imageUrl: "https://example.com/test.png", dataUrl: testDataUrl });
+        const result = await runOcr({
+          config,
+          imageUrl: "https://example.com/test.png",
+          dataUrl: testDataUrl,
+          testMode: true
+        });
         sendResponse({ ok: true, result: { count: result.length } });
         return;
       }
@@ -55,7 +62,7 @@ async function processImage({ imageUrl, dataUrl }) {
   return { blocks: translatedBlocks };
 }
 
-async function runOcr({ config, imageUrl, dataUrl }) {
+async function runOcr({ config, imageUrl, dataUrl, testMode = false }) {
   const provider = config.ocr.provider;
   if (provider === "ocrspace") {
     return runOcrSpace(config, imageUrl);
@@ -65,7 +72,7 @@ async function runOcr({ config, imageUrl, dataUrl }) {
     return runCustomOcr(config, imageUrl, dataUrl);
   }
   if (provider === "baiduOcr") {
-    return runBaiduOcr(config, dataUrl);
+    return runBaiduOcr(config, dataUrl, { testMode });
   }
 
   throw new Error(`Unsupported OCR provider: ${provider}`);
@@ -153,10 +160,10 @@ async function runCustomOcr(config, imageUrl, dataUrl) {
     }));
 }
 
-async function runBaiduOcr(config, dataUrl) {
-  const token = config.ocr.baiduOcrAccessToken;
+async function runBaiduOcr(config, dataUrl, { testMode = false } = {}) {
+  const token = await resolveBaiduOcrAccessToken(config);
   if (!token) {
-    throw new Error("Baidu OCR access token is empty");
+    throw new Error("Baidu OCR access token is empty (or API Key/Secret Key is missing)");
   }
 
   const endpoint = config.ocr.baiduOcrEndpoint || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic";
@@ -179,6 +186,9 @@ async function runBaiduOcr(config, dataUrl) {
 
   const data = await response.json();
   if (data.error_code) {
+    if (testMode && [216201, 216202, 216630].includes(Number(data.error_code))) {
+      return [];
+    }
     throw new Error(data.error_msg || `Baidu OCR error: ${data.error_code}`);
   }
 
@@ -194,6 +204,44 @@ async function runBaiduOcr(config, dataUrl) {
       }
     }))
     .filter((line) => line.text.length > 0);
+}
+
+async function resolveBaiduOcrAccessToken(config) {
+  const directToken = String(config?.ocr?.baiduOcrAccessToken || "").trim();
+  if (directToken) return directToken;
+
+  const apiKey = String(config?.ocr?.baiduOcrApiKey || "").trim();
+  const secretKey = String(config?.ocr?.baiduOcrSecretKey || "").trim();
+  if (!apiKey || !secretKey) return "";
+
+  const cacheKey = `${apiKey}:${secretKey}`;
+  const now = Date.now();
+  const cached = baiduOcrTokenCache.get(cacheKey);
+  if (cached && cached.expireAt > now) {
+    return cached.token;
+  }
+
+  const tokenUrl = new URL("https://aip.baidubce.com/oauth/2.0/token");
+  tokenUrl.searchParams.set("grant_type", "client_credentials");
+  tokenUrl.searchParams.set("client_id", apiKey);
+  tokenUrl.searchParams.set("client_secret", secretKey);
+  const response = await fetch(tokenUrl.toString(), { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Baidu OCR token request failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data?.access_token) {
+    throw new Error(data?.error_description || "Baidu OCR token response missing access_token");
+  }
+
+  const expiresInSec = Number(data.expires_in || 0);
+  const safeExpireAt = now + Math.max(60, expiresInSec - 60) * 1000;
+  baiduOcrTokenCache.set(cacheKey, {
+    token: data.access_token,
+    expireAt: safeExpireAt
+  });
+  return data.access_token;
 }
 
 async function translateText(text, config) {
