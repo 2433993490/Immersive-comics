@@ -159,6 +159,27 @@ async function translateText(text, config) {
     return (data?.[0] || []).map((part) => part?.[0] || "").join("").trim();
   }
 
+  if (config.translator.provider === "azureTranslator") {
+    const source = config.sourceLang && config.sourceLang !== "auto" ? config.sourceLang : "auto-detect";
+    const target = config.targetLang || "zh-Hans";
+    const endpoint = `${config.translator.azureTranslatorEndpoint}&from=${encodeURIComponent(source)}&to=${encodeURIComponent(target)}`;
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify([{ Text: text }])
+    });
+
+    if (!response.ok) {
+      throw new Error(`Microsoft translate request failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return String(data?.[0]?.translations?.[0]?.text || "").trim();
+  }
+
   if (config.translator.provider !== "google") {
     const endpoint = config.translator.custom.endpoint;
     if (!endpoint) {

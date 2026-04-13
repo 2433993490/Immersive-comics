@@ -4,6 +4,7 @@ export const DEFAULT_CONFIG = {
   translator: {
     provider: "google",
     googleEndpoint: "https://translate.googleapis.com/translate_a/single",
+    azureTranslatorEndpoint: "https://api-edge.cognitive.microsofttranslator.com/translate?api-version=3.0",
     custom: {
       endpoint: "",
       headers: "Content-Type: application/json",

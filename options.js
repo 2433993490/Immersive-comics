@@ -45,14 +45,6 @@ const BUILTIN_TRANSLATOR_PRESETS = {
       "{\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [{\"role\": \"user\", \"content\": \"Translate from {{sourceLang}} to {{targetLang}}:\\n{{text}}\"}]\n}",
     responsePath: "choices.0.message.content"
   },
-  azureTranslator: {
-    endpoint: "https://api.cognitive.microsofttranslator.com/translate?x=2",
-    headers:
-      "Content-Type: application/json\nOcp-Apim-Subscription-Key: <YOUR_API_KEY>\nOcp-Apim-Subscription-Region: <YOUR_REGION>",
-    bodyTemplate:
-      "[{\n  \"text\": \"{{text}}\"\n}]",
-    responsePath: "0.translations.0.text"
-  },
   aliyunBailian: {
     endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
     headers: "Content-Type: application/json\nAuthorization: Bearer <YOUR_API_KEY>",
@@ -140,6 +132,33 @@ const BUILTIN_TRANSLATOR_PRESETS = {
   }
 };
 
+const PROVIDER_LABELS = {
+  google: "谷歌翻译",
+  claude: "Claude",
+  deepl: "DeepL",
+  deepseek: "DeepSeek",
+  gemini: "Gemini",
+  openl: "OpenL",
+  azureOpenai: "Open AI (Azure)",
+  azureTranslator: "微软翻译",
+  aliyunBailian: "阿里云百炼",
+  qwenMt: "Qwen-MT",
+  aliyunTranslate: "阿里云翻译",
+  baiduQianfan: "百度千帆",
+  doubao: "豆包",
+  baiduTranslate: "百度翻译",
+  caiyun: "彩云小译",
+  volcengine: "火山引擎",
+  tencentTransmart: "腾讯翻译君",
+  niutrans: "小牛翻译",
+  youdao: "有道翻译",
+  youdaoLlm: "有道子曰",
+  custom: "自定义接口"
+};
+const PROVIDER_ORDER = ["google", "azureTranslator", ...Object.keys(BUILTIN_TRANSLATOR_PRESETS), "custom"];
+const BUILTIN_NO_SETUP_PROVIDERS = new Set(["google", "azureTranslator"]);
+
+
 init();
 
 async function init() {
@@ -164,18 +183,14 @@ function bind(config) {
   $("customTranslateHeaders").value = config.translator.custom.headers;
   $("customTranslateBody").value = config.translator.custom.bodyTemplate;
   $("customTranslatePath").value = config.translator.custom.responsePath;
+
   if (
     config.translator.provider !== "google" &&
     config.translator.provider !== "custom" &&
     !config.translator.custom.endpoint
   ) {
     const preset = BUILTIN_TRANSLATOR_PRESETS[config.translator.provider];
-    if (preset) {
-      $("customTranslateEndpoint").value = preset.endpoint;
-      $("customTranslateHeaders").value = preset.headers;
-      $("customTranslateBody").value = preset.bodyTemplate;
-      $("customTranslatePath").value = preset.responsePath;
-    }
+    if (preset) applyPresetToForm(preset);
   }
 
   $("aiEnabled").checked = config.ai.enabled;
@@ -194,7 +209,9 @@ function bind(config) {
   $("customOcrBody").value = config.ocr.custom.bodyTemplate;
   $("customOcrPath").value = config.ocr.custom.responsePath;
 
-  $("translatorProvider")?.addEventListener("change", onTranslatorProviderChange);
+  renderProviderList();
+  updateProviderHeader();
+  updateTranslateApiSection();
 }
 
 function collect() {
@@ -204,6 +221,7 @@ function collect() {
     translator: {
       provider: $("translatorProvider").value,
       googleEndpoint: "https://translate.googleapis.com/translate_a/single",
+      azureTranslatorEndpoint: "https://api-edge.cognitive.microsofttranslator.com/translate?api-version=3.0",
       custom: {
         endpoint: $("customTranslateEndpoint").value.trim(),
         headers: $("customTranslateHeaders").value,
@@ -239,14 +257,70 @@ function collect() {
   };
 }
 
-function onTranslatorProviderChange(event) {
-  const provider = event.target.value;
-  if (provider === "google" || provider === "custom") return;
+function onTranslatorProviderChange(provider) {
+  $("translatorProvider").value = provider;
+  if (BUILTIN_NO_SETUP_PROVIDERS.has(provider) || provider === "custom") {
+    renderProviderList();
+    updateProviderHeader();
+    updateTranslateApiSection();
+    return;
+  }
+
   const preset = BUILTIN_TRANSLATOR_PRESETS[provider];
   if (!preset) return;
 
+  applyPresetToForm(preset);
+  renderProviderList();
+  updateProviderHeader();
+  updateTranslateApiSection();
+}
+
+function applyPresetToForm(preset) {
   $("customTranslateEndpoint").value = preset.endpoint;
   $("customTranslateHeaders").value = preset.headers;
   $("customTranslateBody").value = preset.bodyTemplate;
   $("customTranslatePath").value = preset.responsePath;
 }
+
+function renderProviderList() {
+  const container = $("providerList");
+  if (!container) return;
+
+  const current = $("translatorProvider").value || "google";
+  container.innerHTML = "";
+
+  PROVIDER_ORDER.forEach((provider) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = `provider-item${provider === current ? " active" : ""}`;
+    item.dataset.provider = provider;
+    item.innerHTML = `
+      <span class="provider-name">${PROVIDER_LABELS[provider] || provider}</span>
+      <span class="switch" aria-hidden="true"></span>
+    `;
+    item.addEventListener("click", () => onTranslatorProviderChange(provider));
+    container.appendChild(item);
+  });
+}
+
+
+function updateTranslateApiSection() {
+  const provider = $("translatorProvider").value || "google";
+  const hint = $("builtInProviderHint");
+  if (!hint) return;
+
+  const isBuiltIn = BUILTIN_NO_SETUP_PROVIDERS.has(provider);
+  hint.style.display = isBuiltIn ? "block" : "none";
+
+  ["customTranslateEndpoint", "customTranslateHeaders", "customTranslateBody", "customTranslatePath"].forEach((id) => {
+    const node = $(id);
+    if (node) node.disabled = isBuiltIn;
+  });
+}
+
+function updateProviderHeader() {
+  const provider = $("translatorProvider").value || "google";
+  const el = $("activeProviderTitle");
+  if (el) el.textContent = PROVIDER_LABELS[provider] || provider;
+}
+
