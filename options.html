@@ -362,7 +362,11 @@
               <input id="baiduOcrEndpoint" placeholder="https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic" />
               <label for="baiduOcrToken">百度 OCR Access Token</label>
               <input id="baiduOcrToken" type="password" placeholder="填入 access_token" />
-              <p class="provider-tip">Access Token 可参考百度 OCR 文档获取。</p>
+              <p class="provider-tip">优先使用 Access Token；若为空，将自动使用下方 API Key / Secret Key 换取 token。</p>
+              <label for="baiduOcrApiKey">百度 OCR API Key（可选）</label>
+              <input id="baiduOcrApiKey" type="password" placeholder="填入 API Key，用于自动换取 token" />
+              <label for="baiduOcrSecretKey">百度 OCR Secret Key（可选）</label>
+              <input id="baiduOcrSecretKey" type="password" placeholder="填入 Secret Key，用于自动换取 token" />
             </div>
 
             <div id="customOcrFields">

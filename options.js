@@ -155,8 +155,8 @@ const PROVIDER_LABELS = {
   youdaoLlm: "有道子曰",
   custom: "自定义接口"
 };
-const PROVIDER_ORDER = ["google", "azureTranslator", ...Object.keys(BUILTIN_TRANSLATOR_PRESETS), "custom"];
-const BUILTIN_NO_SETUP_PROVIDERS = new Set(["google", "azureTranslator"]);
+const PROVIDER_ORDER = Array.from(new Set(["tencentTransmart", "google", "azureTranslator", ...Object.keys(BUILTIN_TRANSLATOR_PRESETS), "custom"]));
+const BUILTIN_NO_SETUP_PROVIDERS = new Set(["google", "azureTranslator", "tencentTransmart"]);
 const MODEL_PROVIDERS = new Set([
   "claude",
   "deepseek",
@@ -215,6 +215,8 @@ function bind(config) {
   $("ocrSpaceKey").value = config.ocr.ocrSpaceApiKey;
   $("baiduOcrEndpoint").value = config.ocr.baiduOcrEndpoint || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic";
   $("baiduOcrToken").value = config.ocr.baiduOcrAccessToken || "";
+  $("baiduOcrApiKey").value = config.ocr.baiduOcrApiKey || "";
+  $("baiduOcrSecretKey").value = config.ocr.baiduOcrSecretKey || "";
   $("customOcrEndpoint").value = config.ocr.custom.endpoint;
   $("customOcrHeaders").value = config.ocr.custom.headers;
   $("customOcrBody").value = config.ocr.custom.bodyTemplate;
@@ -250,6 +252,8 @@ function collect() {
       ocrSpaceApiKey: $("ocrSpaceKey").value.trim() || "helloworld",
       baiduOcrEndpoint: $("baiduOcrEndpoint").value.trim() || "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate_basic",
       baiduOcrAccessToken: $("baiduOcrToken").value.trim(),
+      baiduOcrApiKey: $("baiduOcrApiKey").value.trim(),
+      baiduOcrSecretKey: $("baiduOcrSecretKey").value.trim(),
       custom: {
         endpoint: $("customOcrEndpoint").value.trim(),
         headers: $("customOcrHeaders").value,
