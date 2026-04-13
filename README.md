@@ -6,6 +6,8 @@
 
 - 自动扫描页面中的漫画图片（可在 Popup 中一键扫描）。
 - 默认使用 Google Translate（无需 API Key）。
+- Popup 布局参考沉浸式翻译（语言切换 / 翻译服务 / AI 专家 / 一键翻译）。
+- 设置页翻译服务配置布局参考沉浸式翻译（左侧服务列表 + 右侧详细配置）。
 - 支持自定义翻译 API（Endpoint + Header + Body 模板）。
 - 支持自定义 AI 大模型 API（可用于译文润色/改写）。
 - 支持自定义 OCR 源（内置 OCR.Space + 自定义 OCR API）。
@@ -31,10 +33,17 @@
 
 - **翻译源**
   - `google`（默认）
+  - `claude` / `deepl` / `deepseek` / `gemini` / `openl`
+  - `azureOpenai` / `azureTranslator`
+  - `aliyunBailian` / `qwenMt` / `aliyunTranslate`
+  - `baiduQianfan` / `doubao` / `baiduTranslate`
+  - `caiyun` / `volcengine` / `tencentTransmart` / `niutrans`
+  - `youdao` / `youdaoLlm`
   - `custom`（自定义 REST 接口）
 - **AI 模型（可选）**
   - 关闭
   - 开启并配置 Endpoint / Key / Model / Prompt
+  - 内置 AI 专家：通用 / GitHub 翻译增强器 / 金融专家 / 意译大师（参考 https://github.com/immersive-translate/prompts）
 - **OCR 源**
   - `ocrspace`（默认，使用 OCR.Space）
   - `custom`（自定义 OCR REST 接口）
@@ -65,4 +74,3 @@
 - `content.css` - 覆盖层视觉样式
 - `popup.html` / `popup.js` - 快速操作入口
 - `options.html` / `options.js` - 配置管理
-

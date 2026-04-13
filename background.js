@@ -159,7 +159,7 @@ async function translateText(text, config) {
     return (data?.[0] || []).map((part) => part?.[0] || "").join("").trim();
   }
 
-  if (config.translator.provider === "custom") {
+  if (config.translator.provider !== "google") {
     const endpoint = config.translator.custom.endpoint;
     if (!endpoint) {
       throw new Error("Custom translator endpoint is empty");
@@ -178,13 +178,13 @@ async function translateText(text, config) {
     });
 
     if (!response.ok) {
-      throw new Error(`Custom translator request failed: ${response.status}`);
+      throw new Error(`Translator request failed: ${response.status}`);
     }
 
     const data = await response.json();
     const translated = getByPath(data, config.translator.custom.responsePath);
     if (!translated) {
-      throw new Error("Custom translator responsePath produced empty result");
+      throw new Error("Translator responsePath produced empty result");
     }
 
     return String(translated);
