@@ -31,6 +31,11 @@ export const DEFAULT_CONFIG = {
   imageFilter: {
     minWidth: 280,
     minHeight: 280
+  },
+  ui: {
+    overlayMode: "immersive",
+    translationMode: "standard",
+    aiExpert: "general"
   }
 };
 

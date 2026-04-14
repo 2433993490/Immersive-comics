@@ -60,7 +60,7 @@ async function processImage({ imageUrl, dataUrl, browserOcrBlocks }) {
   if (config.ocr.provider === "browser") {
     ocrBlocks = Array.isArray(browserOcrBlocks) ? browserOcrBlocks : [];
     if (!ocrBlocks.length) {
-      ocrBlocks = await runOcrSpace(config, { imageUrl, dataUrl });
+      throw new Error("浏览器 OCR 仅支持 Chrome / Edge，请切换 OCR.Space 或其它 OCR 源");
     }
   } else {
     ocrBlocks = await runOcr({ config, imageUrl, dataUrl });
@@ -71,7 +71,13 @@ async function processImage({ imageUrl, dataUrl, browserOcrBlocks }) {
     translated: translatedTexts[idx] || ""
   }));
 
-  return { blocks: translatedBlocks };
+  return {
+    blocks: translatedBlocks,
+    ui: {
+      overlayMode: config?.ui?.overlayMode || "immersive",
+      translationMode: config?.ui?.translationMode || "standard"
+    }
+  };
 }
 
 async function runOcr({ config, imageUrl, dataUrl, testMode = false }) {
@@ -435,13 +441,24 @@ async function blobToDataUrl(blob) {
 
 async function translateBlocksWithContext(blocks, config) {
   if (!blocks.length) return [];
+  const requestedMode = config?.ui?.translationMode || "standard";
+  const mode = requestedMode === "aiExpert" && isAiExpertSupportedProvider(config?.translator?.provider)
+    ? "aiExpert"
+    : "standard";
 
   if (blocks.length === 1) {
+    if (mode === "aiExpert") {
+      const singlePrompt = buildAiExpertPrompt(`[1] ${blocks[0].text}`, config);
+      const singleResult = await translateText(singlePrompt, config);
+      const singleParsed = parseIndexedTranslations(singleResult, 1);
+      if (singleParsed.length === 1) return singleParsed;
+    }
     return [await translateText(blocks[0].text, config)];
   }
 
   const markerLines = blocks.map((block, idx) => `[${idx + 1}] ${block.text}`);
-  const merged = markerLines.join("\n");
+  const mergedRaw = markerLines.join("\n");
+  const merged = mode === "aiExpert" ? buildAiExpertPrompt(mergedRaw, config) : mergedRaw;
   const mergedTranslated = await translateText(merged, config);
   const parsed = parseIndexedTranslations(mergedTranslated, blocks.length);
   if (parsed.length === blocks.length) return parsed;
@@ -451,6 +468,66 @@ async function translateBlocksWithContext(blocks, config) {
     translatedBlocks.push(await translateText(block.text, config));
   }
   return translatedBlocks;
+}
+
+function isAiExpertSupportedProvider(provider) {
+  return new Set([
+    "claude",
+    "deepseek",
+    "gemini",
+    "azureOpenai",
+    "aliyunBailian",
+    "qwenMt",
+    "baiduQianfan",
+    "doubao",
+    "youdaoLlm",
+    "openl",
+    "custom"
+  ]).has(provider);
+}
+
+function buildAiExpertPrompt(indexedText, config) {
+  const sourceLang = config?.sourceLang || "auto";
+  const targetLang = config?.targetLang || "zh-CN";
+  const expert = config?.ui?.aiExpert || "general";
+  const strategy = getAiExpertStrategy(expert);
+  return [
+    `你是“沉浸式翻译 AI 专家”，请把以下漫画 OCR 文本从 ${sourceLang} 翻译到 ${targetLang}。`,
+    `当前专家：${strategy.name}`,
+    "要求：",
+    "1) 保留每一行开头的 [序号]，禁止遗漏编号。",
+    "2) 用口语化、自然、贴近漫画语气的翻译。",
+    "3) 只输出翻译结果，不要解释。",
+    `4) 专家策略：${strategy.prompt}`,
+    "",
+    indexedText
+  ].join("\n");
+}
+
+function getAiExpertStrategy(expert) {
+  const map = {
+    general: {
+      name: "通用",
+      prompt: "保持语义准确与可读性平衡，适合大多数场景。"
+    },
+    manga: {
+      name: "漫画对白强化",
+      prompt: "优先体现角色语气、情绪与口语节奏，短句更自然。"
+    },
+    technical: {
+      name: "技术文档",
+      prompt: "术语统一、表达精确，保留关键英文术语和专有名词。"
+    },
+    news: {
+      name: "新闻资讯",
+      prompt: "风格客观简洁，优先传达事实与时间、数字信息。"
+    },
+    github: {
+      name: "GitHub 代码注释",
+      prompt: "代码块与变量名保持原样，注释与说明翻译清晰凝练。"
+    }
+  };
+  return map[expert] || map.general;
 }
 
 function parseIndexedTranslations(text, expectedCount) {

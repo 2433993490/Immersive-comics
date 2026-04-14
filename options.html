@@ -166,6 +166,13 @@
         padding: 16px;
         margin-bottom: 12px;
       }
+      .subpanel {
+        margin-top: 12px;
+        border: 1px solid #f1d5e7;
+        background: #fff7fb;
+        border-radius: 10px;
+        padding: 12px;
+      }
 
       .section h3 {
         margin: 0 0 14px;
@@ -315,7 +322,7 @@
 
           <div class="section" id="translateApiSection">
             <h3>翻译 API</h3>
-            <p id="builtInProviderHint" class="provider-tip" style="display:none; margin-bottom:12px;">当前翻译源为内置免设置服务（谷歌/微软），无需填写下列接口参数。</p>
+            <p id="builtInProviderHint" class="provider-tip" style="display:none; margin-bottom:12px;">当前翻译源为内置免设置服务（腾讯翻译君/谷歌/微软），无需填写下列接口参数。</p>
             <label for="providerEndpoint">接口链接</label>
             <input id="providerEndpoint" placeholder="https://..." />
             <div class="row">
@@ -343,6 +350,28 @@
             <textarea id="customTranslateBody"></textarea>
             <label for="customTranslatePath">自定义 Response Path</label>
             <input id="customTranslatePath" placeholder="data.translation" />
+
+            <div id="aiSourceSection" class="subpanel">
+              <h3 style="margin:0 0 10px;font-size:15px;">自定义 AI 源（沉浸式风格填写区）</h3>
+              <label for="aiEndpointMirror">AI Endpoint</label>
+              <input id="aiEndpointMirror" placeholder="https://api.openai.com/v1/chat/completions" />
+              <div class="row">
+                <div>
+                  <label for="aiApiKeyMirror">AI Key</label>
+                  <input id="aiApiKeyMirror" type="password" placeholder="sk-..." />
+                </div>
+                <div>
+                  <label for="aiModelMirror">AI 模型</label>
+                  <input id="aiModelMirror" placeholder="gpt-4.1-mini / claude-3-5-sonnet" />
+                </div>
+              </div>
+              <label for="aiPromptMirror">AI 专家 Prompt 模板</label>
+              <textarea id="aiPromptMirror" placeholder="Translate from {{sourceLang}} to {{targetLang}}..."></textarea>
+              <div class="test-row">
+                <button id="templateOpenAiBtn" type="button">OpenAI 模板</button>
+                <button id="templateClaudeBtn" type="button">Claude 模板</button>
+              </div>
+            </div>
           </div>
 
           <div class="section">
@@ -355,7 +384,7 @@
               <option value="custom">Custom</option>
             </select>
             <div id="browserOcrFields">
-              <p class="provider-tip">优先使用浏览器内置文字识别（TextDetector）。若当前浏览器不支持，将自动回退到 OCR.Space。</p>
+              <p class="provider-tip">使用浏览器内置文字识别（TextDetector）直接进行免费 OCR。由于浏览器技术限制，目前仅 Chrome / Edge 支持。</p>
             </div>
             <div id="ocrSpaceFields">
               <label for="ocrSpaceKey">OCR.Space Key</label>
