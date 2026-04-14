@@ -198,6 +198,12 @@ async function init() {
   $("testProviderBtn")?.addEventListener("click", testProviderConnection);
   $("testOcrBtn")?.addEventListener("click", testOcrConnection);
   $("ocrProvider")?.addEventListener("change", updateOcrSection);
+  $("aiEndpointMirror")?.addEventListener("input", syncAiMirrorToCustomFields);
+  $("aiApiKeyMirror")?.addEventListener("input", syncAiMirrorToCustomFields);
+  $("aiModelMirror")?.addEventListener("input", syncAiMirrorToCustomFields);
+  $("aiPromptMirror")?.addEventListener("input", syncAiMirrorToCustomFields);
+  $("templateOpenAiBtn")?.addEventListener("click", () => applyAiTemplate("openai"));
+  $("templateClaudeBtn")?.addEventListener("click", () => applyAiTemplate("claude"));
   $("providerModelSelect")?.addEventListener("change", onModelModeChange);
   $("providerModelCustom")?.addEventListener("input", syncModelHiddenValue);
 }
@@ -297,6 +303,7 @@ function hydrateProviderConfig(provider, fallbackCustom = null) {
   $("customTranslateHeaders").value = cfg.headers || "Content-Type: application/json";
   $("customTranslateBody").value = cfg.bodyTemplate || "{\n  \"text\": \"{{text}}\",\n  \"target\": \"{{targetLang}}\"\n}";
   $("customTranslatePath").value = cfg.responsePath || "data.translation";
+  syncAiMirrorFromCustomFields();
 }
 
 function persistCurrentProviderConfig() {
@@ -366,6 +373,15 @@ function updateTranslateApiSection() {
   });
 
   ["customTranslateEndpoint", "customTranslateHeaders", "customTranslateBody", "customTranslatePath"].forEach((id) => {
+    const node = $(id);
+    if (node) node.disabled = isBuiltIn || !isCustom;
+  });
+
+  const aiSourceSection = $("aiSourceSection");
+  if (aiSourceSection) {
+    aiSourceSection.style.display = isCustom || MODEL_PROVIDERS.has(provider) ? "block" : "none";
+  }
+  ["aiEndpointMirror", "aiApiKeyMirror", "aiModelMirror", "aiPromptMirror", "templateOpenAiBtn", "templateClaudeBtn"].forEach((id) => {
     const node = $(id);
     if (node) node.disabled = isBuiltIn || !isCustom;
   });
@@ -477,4 +493,67 @@ function updateOcrSection() {
   show("ocrSpaceFields", provider === "ocrspace");
   show("baiduOcrFields", provider === "baiduOcr");
   show("customOcrFields", provider === "custom");
+}
+
+function syncAiMirrorFromCustomFields() {
+  $("aiEndpointMirror").value = $("customTranslateEndpoint").value;
+  $("aiPromptMirror").value = extractPromptFromBody($("customTranslateBody").value);
+  $("aiApiKeyMirror").value = extractApiKeyFromHeaders($("customTranslateHeaders").value);
+  $("aiModelMirror").value = $("providerModel").value || "";
+}
+
+function syncAiMirrorToCustomFields() {
+  $("customTranslateEndpoint").value = $("aiEndpointMirror").value.trim();
+  $("providerEndpoint").value = $("aiEndpointMirror").value.trim();
+  $("providerApiKey").value = $("aiApiKeyMirror").value.trim();
+  $("providerModel").value = $("aiModelMirror").value.trim();
+  $("customTranslateHeaders").value = buildHeadersWithApiKey($("customTranslateHeaders").value, $("aiApiKeyMirror").value.trim());
+  $("customTranslateBody").value = buildOpenAiLikeBodyTemplate($("aiModelMirror").value.trim(), $("aiPromptMirror").value);
+}
+
+function applyAiTemplate(type) {
+  if (type === "claude") {
+    $("customTranslateHeaders").value =
+      "Content-Type: application/json\nx-api-key: <YOUR_API_KEY>\nanthropic-version: 2023-06-01";
+    $("customTranslateBody").value =
+      "{\n  \"model\": \"claude-3-5-sonnet-latest\",\n  \"max_tokens\": 1024,\n  \"messages\": [{\"role\": \"user\", \"content\": \"{{text}}\"}]\n}";
+    $("customTranslatePath").value = "content.0.text";
+  } else {
+    $("customTranslateHeaders").value = "Content-Type: application/json\nAuthorization: Bearer <YOUR_API_KEY>";
+    $("customTranslateBody").value =
+      "{\n  \"model\": \"gpt-4.1-mini\",\n  \"messages\": [{\"role\": \"system\", \"content\": \"{{prompt}}\"}, {\"role\": \"user\", \"content\": \"{{text}}\"}]\n}";
+    $("customTranslatePath").value = "choices.0.message.content";
+  }
+  syncAiMirrorFromCustomFields();
+}
+
+function buildOpenAiLikeBodyTemplate(model, prompt) {
+  const safeModel = model || "gpt-4.1-mini";
+  const safePrompt = (prompt || "Translate from {{sourceLang}} to {{targetLang}}").replace(/"/g, '\\"');
+  return `{\n  "model": "${safeModel}",\n  "messages": [{"role": "system", "content": "${safePrompt}"}, {"role": "user", "content": "{{text}}"}]\n}`;
+}
+
+function extractPromptFromBody(body) {
+  const match = String(body || "").match(/"system"\s*,\s*"content"\s*:\s*"([^"]*)"/);
+  return match ? match[1].replace(/\\"/g, "\"") : "Translate from {{sourceLang}} to {{targetLang}}";
+}
+
+function extractApiKeyFromHeaders(headers) {
+  const raw = String(headers || "");
+  const bearer = raw.match(/Authorization:\s*Bearer\s+(.+)/i);
+  if (bearer) return bearer[1].trim();
+  const xApi = raw.match(/x-api-key:\s*(.+)/i);
+  return xApi ? xApi[1].trim() : "";
+}
+
+function buildHeadersWithApiKey(headers, apiKey) {
+  const base = String(headers || "");
+  if (!apiKey) return base;
+  if (/Authorization:\s*Bearer/i.test(base)) {
+    return base.replace(/Authorization:\s*Bearer\s+.+/i, `Authorization: Bearer ${apiKey}`);
+  }
+  if (/x-api-key:/i.test(base)) {
+    return base.replace(/x-api-key:\s*.+/i, `x-api-key: ${apiKey}`);
+  }
+  return `${base}\nAuthorization: Bearer ${apiKey}`.trim();
 }

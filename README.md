@@ -6,10 +6,17 @@
 
 - 自动扫描页面中的漫画图片（可在 Popup 中一键扫描）。
 - 默认使用腾讯翻译君（Transmart）免配置源，Google/微软可在设置中手动切换。
-- Popup 布局参考沉浸式翻译（语言切换 / 翻译服务 / 一键翻译）。
+- Popup 布局参考沉浸式翻译（语言切换 / 翻译服务 / OCR 识别 / AI 专家模式 / 嵌入效果 / 一键翻译）。
 - 支持按翻译服务分别保存 API 配置（Endpoint / API Key / 模型 / 模板）。
 - 支持自定义 OCR 源（内置 OCR.Space + 自定义 OCR API）。
-- 译文以“漫画气泡”样式覆盖在图片上（半透明白底、圆角、阴影、可点击复制）。
+- 译文以“沉浸式嵌入”方式覆盖在识别文本框区域内（自适应字号、居中排版、可点击复制）。
+- 支持前端弹窗切换翻译模式（标准 / AI 专家）与覆盖样式（沉浸式 / 双语 / 极简高亮）。
+- AI 专家策略基于 Prompt，可在弹窗中直接选择“通用 / 漫画 / 技术 / 新闻 / GitHub”，并可跳转到社区仓库查看与贡献：`https://github.com/immersive-translate/prompts`。
+- 注意：AI 术语库/AI 专家策略默认不支持谷歌/微软等机器翻译源，仅在 AI 翻译服务（如 Claude/Gemini/OpenAI 等）下生效。
+- 免费图片翻译优先使用浏览器 OCR 直接识别文字；由于浏览器技术限制，目前仅 Chrome / Edge 支持。
+- 设置页新增“自定义 AI 源（沉浸式风格填写区）”，可直接填写 Endpoint / Key / 模型 / Prompt，并一键套用 OpenAI/Claude 模板。
+- 已增加漫画站点适配扫描策略（按域名关键字 + 站点选择器），优先适配你给出的沉浸式翻译常见漫画站（如 Pixiv、MANGA Plus、MangaDex、ComicWalker、腾讯动漫、Bilibili Manga、Webtoons、Lezhin、Kakao、Batoto、AsuraScans、Comick 等）。
+- 针对 Pixiv 等跨域图片站点，已优先走浏览器 OCR 直识别路径，避免 `Image to canvas failed` 导致翻译失败。
 
 ## 安装
 
@@ -39,7 +46,8 @@
   - `youdao` / `youdaoLlm`
   - `custom`（自定义 REST 接口）
 - **OCR 源**
-  - `ocrspace`（默认，使用 OCR.Space）
+  - `browser`（默认，免费浏览器 OCR，仅支持 Chrome / Edge）
+  - `ocrspace`（免费 OCR 接口）
   - `baiduOcr`（内置百度 OCR，支持 Access Token 或 API Key + Secret Key 自动换 token）
   - `custom`（自定义 OCR REST 接口）
 

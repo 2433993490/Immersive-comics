@@ -1,6 +1,93 @@
 const state = {
   images: new Set()
 };
+const SUPPORTED_MANGA_SITE_KEYWORDS = [
+  "pixiv",
+  "mangaplus",
+  "zebrack",
+  "comic-fuz",
+  "mangadex",
+  "yamibo",
+  "shonenjumpplus",
+  "rimacomiplus",
+  "heros-web",
+  "comic-days",
+  "comic-top",
+  "comic-walker",
+  "web-ace",
+  "antbyw",
+  "jmanga",
+  "twitter",
+  "mangaz",
+  "pash-up",
+  "colamanga",
+  "ganganonline",
+  "batoto",
+  "asurascans",
+  "allmanga",
+  "manhwaclan",
+  "corocoro",
+  "tonarinoyj",
+  "yymanhua",
+  "manhwatop",
+  "palcy",
+  "comic-trail",
+  "templetoons",
+  "batocomic",
+  "comic-action",
+  "ac.qq.com",
+  "sololeveling",
+  "syosetu",
+  "comick",
+  "younganimal",
+  "piccoma",
+  "hentaizap",
+  "hanime1",
+  "globalcomix",
+  "xbato",
+  "mangaraw",
+  "bilibili",
+  "idmzj",
+  "animatebookstore",
+  "ganma",
+  "mangafire",
+  "reaperscans",
+  "dlsite",
+  "shonenmagazine",
+  "comic.naver",
+  "webtoons",
+  "lezhin",
+  "rawkuma",
+  "kakao",
+  "topreadmanga",
+  "poipiku",
+  "manhuaus",
+  "hmttmh",
+  "comic-growl",
+  "jumptoon",
+  "fenoxo",
+  "mangafreak",
+  "cmoa",
+  "comicgardo",
+  "booklive",
+  "mrblue",
+  "mangalove"
+];
+const SITE_ADAPTERS = {
+  twitter: ["article img", "img[src*='twimg']"],
+  pixiv: ["figure img", "img[alt*='漫画']", "img"],
+  mangaplus: [".page img", "img[src*='manga']"],
+  mangadex: [".reader--image img", ".md--reader-chapter img"],
+  bilibili: [".manga-image img", ".image-container img"]
+};
+const DEFAULT_IMAGE_SELECTORS = [
+  "main img",
+  ".viewer img",
+  ".reader img",
+  ".comic img",
+  "article img",
+  "img"
+];
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "SCAN_IMAGES") {
@@ -18,8 +105,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 attachButtonsToEligibleImages();
 
 function attachButtonsToEligibleImages() {
+  if (!isSupportedMangaSite(location.hostname)) {
+    return 0;
+  }
+
   let count = 0;
-  const images = Array.from(document.querySelectorAll("img"));
+  const images = collectSiteImages();
   for (const img of images) {
     if (!isEligibleImage(img)) continue;
     if (state.images.has(img)) continue;
@@ -42,7 +133,8 @@ function attachButtonsToEligibleImages() {
 
 function isEligibleImage(img) {
   const rect = img.getBoundingClientRect();
-  return rect.width >= 280 && rect.height >= 280 && img.src && !img.src.startsWith("data:");
+  const src = img.currentSrc || img.src || img.dataset?.src || "";
+  return rect.width >= 220 && rect.height >= 220 && src && !src.startsWith("data:");
 }
 
 function createButton(img) {
@@ -61,8 +153,10 @@ function createButton(img) {
 
     try {
       const imageUrl = img.currentSrc || img.src;
-      const dataUrl = await getImageDataUrl(img, imageUrl);
+      const ocrProvider = await getConfiguredOcrProvider();
       const browserOcrBlocks = await detectTextBlocksWithBrowser(img);
+      const needsImageData = !(ocrProvider === "browser" && Array.isArray(browserOcrBlocks) && browserOcrBlocks.length > 0);
+      const dataUrl = needsImageData ? await getImageDataUrl(img, imageUrl) : "";
       const response = await chrome.runtime.sendMessage({
         type: "PROCESS_IMAGE",
         payload: {
@@ -76,7 +170,7 @@ function createButton(img) {
         throw new Error(response?.error || "Unknown processing error");
       }
 
-      renderOverlay(img, response.result.blocks || []);
+      renderOverlay(img, response.result.blocks || [], response.result.ui || {});
       btn.textContent = "已翻译";
     } catch (error) {
       const reason = formatErrorMessage(error);
@@ -108,7 +202,7 @@ function placeButton(img, btn) {
   btn.style.top = `${y}px`;
 }
 
-function renderOverlay(img, blocks) {
+function renderOverlay(img, blocks, uiConfig = {}) {
   removeOverlayForImage(img);
 
   const imgRect = img.getBoundingClientRect();
@@ -117,6 +211,7 @@ function renderOverlay(img, blocks) {
 
   const overlay = document.createElement("div");
   overlay.className = "comic-translate-overlay";
+  overlay.dataset.overlayMode = uiConfig.overlayMode || "immersive";
   overlay.dataset.targetImage = img.currentSrc || img.src;
   overlay.style.left = `${window.scrollX + imgRect.left}px`;
   overlay.style.top = `${window.scrollY + imgRect.top}px`;
@@ -124,18 +219,26 @@ function renderOverlay(img, blocks) {
   overlay.style.height = `${imgRect.height}px`;
 
   for (const block of blocks) {
+    const translatedText = String(block.translated || "").trim();
+    if (!translatedText) continue;
+
     const bubble = document.createElement("div");
     bubble.className = "comic-translate-bubble";
-    bubble.textContent = block.translated || "";
-    bubble.title = "点击复制";
+    bubble.textContent = translatedText;
+    bubble.title = `点击复制\n原文：${String(block.text || "").trim()}`;
 
     const scaleX = imgRect.width / naturalWidth;
     const scaleY = imgRect.height / naturalHeight;
+    const rawWidth = Math.max(46, block.box.width * scaleX);
+    const rawHeight = Math.max(24, block.box.height * scaleY);
+    const width = Math.max(48, rawWidth + 2);
+    const height = Math.max(24, rawHeight + 2);
 
     bubble.style.left = `${block.box.x * scaleX}px`;
     bubble.style.top = `${block.box.y * scaleY}px`;
-    bubble.style.width = `${Math.max(46, block.box.width * scaleX)}px`;
-    bubble.style.minHeight = `${Math.max(24, block.box.height * scaleY)}px`;
+    bubble.style.width = `${width}px`;
+    bubble.style.minHeight = `${height}px`;
+    bubble.style.fontSize = `${getAdaptiveFontSize(width, height, translatedText)}px`;
 
     bubble.addEventListener("click", async () => {
       try {
@@ -160,6 +263,16 @@ function renderOverlay(img, blocks) {
 
   window.addEventListener("scroll", updater, { passive: true });
   window.addEventListener("resize", updater, { passive: true });
+}
+
+function getAdaptiveFontSize(width, height, text) {
+  const safeText = String(text || "").trim();
+  if (!safeText) return 12;
+  const baseByHeight = Math.max(11, Math.min(28, Math.floor(height * 0.58)));
+  const estimatedPerLine = Math.max(2, Math.floor(width / Math.max(8, baseByHeight * 0.56)));
+  const estimatedLines = Math.max(1, Math.ceil(safeText.length / estimatedPerLine));
+  const fitByLines = Math.floor((height - 6) / estimatedLines);
+  return Math.max(11, Math.min(baseByHeight, fitByLines));
 }
 
 function removeOverlayForImage(img) {
@@ -217,6 +330,9 @@ async function getImageDataUrl(img, imageUrl) {
 
 function formatErrorMessage(error) {
   const message = String(error?.message || "未知错误").trim();
+  if (/Image to canvas failed/i.test(message)) {
+    return "失败：Pixiv 图片跨域受限，建议切换浏览器OCR";
+  }
   if (!message) return "失败：未知错误";
   const shortMessage = message.length > 24 ? `${message.slice(0, 24)}…` : message;
   return `失败：${shortMessage}`;
@@ -241,5 +357,43 @@ async function detectTextBlocksWithBrowser(img) {
   } catch (error) {
     console.debug("browser OCR failed", error);
     return null;
+  }
+}
+
+function isSupportedMangaSite(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return SUPPORTED_MANGA_SITE_KEYWORDS.some((keyword) => host.includes(keyword));
+}
+
+function collectSiteImages() {
+  const host = String(location.hostname || "").toLowerCase();
+  const selectors = getSelectorsForHost(host);
+  const unique = new Set();
+  const images = [];
+
+  selectors.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((node) => {
+      if (!(node instanceof HTMLImageElement)) return;
+      if (unique.has(node)) return;
+      unique.add(node);
+      images.push(node);
+    });
+  });
+  return images;
+}
+
+function getSelectorsForHost(host) {
+  for (const [keyword, selectors] of Object.entries(SITE_ADAPTERS)) {
+    if (host.includes(keyword)) return selectors;
+  }
+  return DEFAULT_IMAGE_SELECTORS;
+}
+
+async function getConfiguredOcrProvider() {
+  try {
+    const stored = await chrome.storage.sync.get(["comicTranslatorConfig"]);
+    return stored?.comicTranslatorConfig?.ocr?.provider || "browser";
+  } catch (_error) {
+    return "browser";
   }
 }
