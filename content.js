@@ -359,7 +359,7 @@ async function getImageDataUrl(img, imageUrl) {
       if (fallback?.ok && fallback?.dataUrl) {
         return fallback.dataUrl;
       }
-      const fallbackError = fallback?.error ? new Error(fallback.error) : null;
+      const fallbackError = fallback?.error ? createRuntimeError(fallback) : null;
       throw fallbackError || pageFetchError;
     } catch (backgroundError) {
       if (backgroundError?.message) {
@@ -368,6 +368,14 @@ async function getImageDataUrl(img, imageUrl) {
       throw pageFetchError?.message ? pageFetchError : canvasError || new Error("Image conversion failed");
     }
   }
+}
+
+function createRuntimeError(response) {
+  const error = new Error(response?.error || "Unknown runtime error");
+  error.code = response?.errorCode || "";
+  error.reason = response?.errorReason || "";
+  error.status = Number(response?.errorStatus || 0);
+  return error;
 }
 
 async function fetchImageDataUrlInPage(imageUrl) {
@@ -396,8 +404,25 @@ function blobToDataUrl(blob) {
 }
 
 function formatErrorMessage(error) {
+  const code = String(error?.code || "").trim();
+  const reason = String(error?.reason || "").trim();
   const message = String(error?.message || "未知错误").trim();
   if (!message) return "失败：未知错误";
+  if (code === "PIXIV_IMAGE_FETCH_DENIED" && reason === "not_logged_in") {
+    return "失败：Pixiv 图片访问被拒绝（403），检测到未登录，请先登录 Pixiv 后重试";
+  }
+  if (code === "PIXIV_IMAGE_FETCH_DENIED" && reason === "external_referrer_blocked") {
+    return "失败：Pixiv 图片防盗链拦截（403），请在 pixiv.net 页面内打开并重试";
+  }
+  if (code === "PIXIV_IMAGE_FETCH_DENIED" && reason === "possibly_region_limited_or_image_unavailable") {
+    return "失败：Pixiv 图片不可访问，可能是区域限制或图片已失效";
+  }
+  if (code === "IMAGE_FETCH_FAILED" && Number(error?.status) === 403) {
+    return "失败：图片被站点拦截(403)，请确认登录状态后重试";
+  }
+  if (/Image fetch failed:\s*403/i.test(message) || /Page image fetch failed:\s*403/i.test(message)) {
+    return "失败：图片被站点拦截(403)，请先登录站点后重试";
+  }
   const shortMessage = message.length > 24 ? `${message.slice(0, 24)}…` : message;
   return `失败：${shortMessage}`;
 }

@@ -34,7 +34,7 @@ export const DEFAULT_CONFIG = {
   },
   ui: {
     overlayMode: "immersive",
-    translationMode: "standard",
+    translationMode: "auto",
     aiExpert: "general"
   }
 };

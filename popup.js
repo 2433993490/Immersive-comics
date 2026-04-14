@@ -30,6 +30,7 @@ const OCR_OPTIONS = [
   ["custom", "自定义 OCR"]
 ];
 const TRANSLATION_MODE_OPTIONS = [
+  ["auto", "智能识别（默认）"],
   ["standard", "标准翻译"],
   ["aiExpert", "AI 专家翻译"]
 ];
@@ -94,7 +95,7 @@ function bindConfig(config) {
   document.getElementById("targetLang").value = config.targetLang || "zh-CN";
   translatorNode.value = config.translator.provider || "google";
   ocrNode.value = config.ocr?.provider || "browser";
-  translationModeNode.value = config.ui?.translationMode || "standard";
+  translationModeNode.value = config.ui?.translationMode || "auto";
   overlayModeNode.value = config.ui?.overlayMode || "immersive";
   aiExpertNode.value = config.ui?.aiExpert || "general";
 }
@@ -104,7 +105,8 @@ async function onScan() {
     const config = await getConfig();
     const chosenMode = translationModeNode.value;
     const chosenProvider = translatorNode.value;
-    const useAiExpert = chosenMode === "aiExpert" && AI_TRANSLATOR_PROVIDERS.has(chosenProvider);
+    const resolvedMode = resolveTranslationMode(chosenMode, chosenProvider);
+    const useAiExpert = resolvedMode === "aiExpert";
     if (chosenMode === "aiExpert" && !useAiExpert) {
       statusNode.textContent = "提示：AI术语库/AI专家不支持谷歌或微软机器翻译，已回退为标准翻译";
     }
@@ -122,7 +124,7 @@ async function onScan() {
       },
       ui: {
         ...config.ui,
-        translationMode: useAiExpert ? "aiExpert" : "standard",
+        translationMode: chosenMode === "auto" ? "auto" : resolvedMode,
         overlayMode: overlayModeNode.value,
         aiExpert: aiExpertNode.value
       }
@@ -168,4 +170,14 @@ function updateAiExpertAvailability() {
   } else {
     aiExpertNode.title = "";
   }
+}
+
+function resolveTranslationMode(chosenMode, provider) {
+  if (chosenMode === "auto") {
+    return AI_TRANSLATOR_PROVIDERS.has(provider) ? "aiExpert" : "standard";
+  }
+  if (chosenMode === "aiExpert" && !AI_TRANSLATOR_PROVIDERS.has(provider)) {
+    return "standard";
+  }
+  return chosenMode === "aiExpert" ? "aiExpert" : "standard";
 }

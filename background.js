@@ -1,6 +1,15 @@
 import { DEFAULT_CONFIG, getConfig } from "./config.js";
 
 const baiduOcrTokenCache = new Map();
+class AppError extends Error {
+  constructor(message, { code = "UNKNOWN_ERROR", reason = "", status = 0 } = {}) {
+    super(message);
+    this.name = "AppError";
+    this.code = code;
+    this.reason = reason;
+    this.status = status;
+  }
+}
 
 chrome.runtime.onInstalled.addListener(async () => {
   const existing = await chrome.storage.sync.get(["comicTranslatorConfig"]);
@@ -47,7 +56,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       sendResponse({ ok: false, error: "Unknown message type" });
     } catch (error) {
-      sendResponse({ ok: false, error: error.message || String(error) });
+      sendResponse({
+        ok: false,
+        error: error.message || String(error),
+        errorCode: error?.code || "UNKNOWN_ERROR",
+        errorReason: error?.reason || "",
+        errorStatus: Number(error?.status || 0)
+      });
     }
   })();
 
@@ -418,12 +433,21 @@ async function fetchImageAsDataUrl({ imageUrl, pageUrl }) {
   if (!["http:", "https:"].includes(parsed.protocol)) {
     throw new Error("Only HTTP/HTTPS image URLs are supported");
   }
-  const response = await fetch(imageUrl, {
-    credentials: "include",
-    referrer: pageUrl || undefined
-  });
+
+  const response = await fetchImageWithFallback(imageUrl, pageUrl);
   if (!response.ok) {
-    throw new Error(`Image fetch failed: ${response.status}`);
+    if (response.status === 403 && isPixivImageUrl(imageUrl)) {
+      const pixivReason = await diagnosePixiv403({ imageUrl, pageUrl });
+      throw new AppError(`Image fetch failed: 403 (${pixivReason})`, {
+        code: "PIXIV_IMAGE_FETCH_DENIED",
+        reason: pixivReason,
+        status: 403
+      });
+    }
+    throw new AppError(`Image fetch failed: ${response.status}`, {
+      code: "IMAGE_FETCH_FAILED",
+      status: Number(response.status || 0)
+    });
   }
   const contentType = response.headers.get("content-type") || "";
   if (contentType && !contentType.startsWith("image/")) {
@@ -439,6 +463,77 @@ async function fetchImageAsDataUrl({ imageUrl, pageUrl }) {
     throw new Error("Image is too large to process");
   }
   return blobToDataUrl(blob);
+}
+
+async function fetchImageWithFallback(imageUrl, pageUrl) {
+  const firstResponse = await fetch(imageUrl, {
+    credentials: "include",
+    referrer: pageUrl || undefined
+  });
+  if (firstResponse.ok || !shouldRetryWithSiteReferrer(imageUrl, firstResponse.status)) {
+    return firstResponse;
+  }
+
+  const siteReferrer = getSiteFallbackReferrer(imageUrl);
+  return fetch(imageUrl, {
+    credentials: "include",
+    referrer: siteReferrer,
+    referrerPolicy: "strict-origin-when-cross-origin"
+  });
+}
+
+function shouldRetryWithSiteReferrer(imageUrl, status) {
+  if (status !== 401 && status !== 403) return false;
+  return isPixivImageUrl(imageUrl);
+}
+
+function getSiteFallbackReferrer(imageUrl) {
+  if (isPixivImageUrl(imageUrl)) {
+    return "https://www.pixiv.net/";
+  }
+  return undefined;
+}
+
+function isPixivImageUrl(imageUrl) {
+  const host = String(new URL(imageUrl).hostname || "").toLowerCase();
+  return host.includes("pximg.net");
+}
+
+function isPixivPageUrl(pageUrl) {
+  if (!pageUrl) return false;
+  try {
+    const host = String(new URL(pageUrl).hostname || "").toLowerCase();
+    return host === "www.pixiv.net" || host.endsWith(".pixiv.net");
+  } catch {
+    return false;
+  }
+}
+
+async function diagnosePixiv403({ imageUrl, pageUrl }) {
+  if (!isPixivImageUrl(imageUrl)) return "unknown";
+  if (!isPixivPageUrl(pageUrl)) return "external_referrer_blocked";
+
+  try {
+    const response = await fetch("https://www.pixiv.net/ajax/user/extra", {
+      method: "GET",
+      credentials: "include",
+      referrer: pageUrl,
+      referrerPolicy: "strict-origin-when-cross-origin"
+    });
+    if (response.status === 401 || response.status === 403) {
+      return "not_logged_in";
+    }
+    if (!response.ok) {
+      return "possibly_region_limited_or_image_unavailable";
+    }
+    const data = await response.json();
+    if (data?.error === true) {
+      return "not_logged_in";
+    }
+    return "possibly_region_limited_or_image_unavailable";
+  } catch {
+    return "unknown";
+  }
 }
 
 async function blobToDataUrl(blob) {
@@ -457,10 +552,7 @@ async function blobToDataUrl(blob) {
 
 async function translateBlocksWithContext(blocks, config) {
   if (!blocks.length) return [];
-  const requestedMode = config?.ui?.translationMode || "standard";
-  const mode = requestedMode === "aiExpert" && isAiExpertSupportedProvider(config?.translator?.provider)
-    ? "aiExpert"
-    : "standard";
+  const mode = resolveTranslationMode(config?.ui?.translationMode, config?.translator?.provider);
 
   if (blocks.length === 1) {
     if (mode === "aiExpert") {
@@ -484,6 +576,17 @@ async function translateBlocksWithContext(blocks, config) {
     translatedBlocks.push(await translateText(block.text, config));
   }
   return translatedBlocks;
+}
+
+function resolveTranslationMode(requestedMode, provider) {
+  const mode = requestedMode || "auto";
+  if (mode === "auto") {
+    return isAiExpertSupportedProvider(provider) ? "aiExpert" : "standard";
+  }
+  if (mode === "aiExpert" && isAiExpertSupportedProvider(provider)) {
+    return "aiExpert";
+  }
+  return "standard";
 }
 
 function isAiExpertSupportedProvider(provider) {
