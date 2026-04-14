@@ -99,6 +99,12 @@
         padding: 6px 8px;
       }
 
+      .free-hint {
+        margin-top: 4px;
+        font-size: 11px;
+        color: #6b7280;
+      }
+
       .primary {
         width: 100%;
         margin-top: 10px;
@@ -170,6 +176,31 @@
           <div class="field">
             <label for="translatorProvider">翻译服务</label>
             <div class="select-wrap"><select id="translatorProvider"></select></div>
+            <div class="free-hint">免费免配置：腾讯翻译君 / 谷歌翻译 / 微软翻译</div>
+          </div>
+
+          <div class="field">
+            <label for="ocrProvider">OCR 识别</label>
+            <div class="select-wrap"><select id="ocrProvider"></select></div>
+            <div class="free-hint">免费方案：浏览器 OCR 直接识别（仅支持 Chrome / Edge）</div>
+          </div>
+
+          <div class="field">
+            <label for="translationMode">翻译模式</label>
+            <div class="select-wrap"><select id="translationMode"></select></div>
+            <div class="free-hint">AI 专家：自动补全上下文语气，更适合漫画对白</div>
+          </div>
+
+          <div class="field">
+            <label for="aiExpert">AI 专家策略</label>
+            <div class="select-wrap"><select id="aiExpert"></select></div>
+            <div class="free-hint">提示词来源：immersive-translate/prompts（可贡献）；AI术语库默认不支持谷歌/微软等机器翻译源</div>
+          </div>
+
+          <div class="field">
+            <label for="overlayMode">嵌入效果</label>
+            <div class="select-wrap"><select id="overlayMode"></select></div>
+            <div class="free-hint">弹窗选择后立即应用对应覆盖样式</div>
           </div>
 
           <button id="scanBtn" class="primary">翻译 (Alt+A)</button>
@@ -178,6 +209,7 @@
 
         <div class="popup-footer">
           <button id="clearBtn" class="secondary">清除覆盖层</button>
+          <button id="expertsRepoBtn" class="secondary">AI专家源</button>
           <button id="settingsBtn" class="secondary">设置</button>
         </div>
       </div>
