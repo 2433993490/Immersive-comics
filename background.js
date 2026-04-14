@@ -414,6 +414,10 @@ function stripDataUrlPrefix(dataUrl) {
 
 async function fetchImageAsDataUrl({ imageUrl, pageUrl }) {
   if (!imageUrl) throw new Error("imageUrl is required");
+  const parsed = new URL(imageUrl);
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error("Only HTTP/HTTPS image URLs are supported");
+  }
   const response = await fetch(imageUrl, {
     credentials: "include",
     referrer: pageUrl || undefined
@@ -421,7 +425,19 @@ async function fetchImageAsDataUrl({ imageUrl, pageUrl }) {
   if (!response.ok) {
     throw new Error(`Image fetch failed: ${response.status}`);
   }
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType && !contentType.startsWith("image/")) {
+    throw new Error(`Unexpected content-type: ${contentType}`);
+  }
+  const contentLength = Number(response.headers.get("content-length") || 0);
+  const maxImageSize = 15 * 1024 * 1024;
+  if (contentLength > maxImageSize) {
+    throw new Error("Image is too large to process");
+  }
   const blob = await response.blob();
+  if (blob.size > maxImageSize) {
+    throw new Error("Image is too large to process");
+  }
   return blobToDataUrl(blob);
 }
 

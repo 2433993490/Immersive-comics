@@ -1,5 +1,9 @@
 const state = {
-  images: new Set()
+  images: new Set(),
+  buttonMeta: new WeakMap(),
+  overlayMeta: new WeakMap(),
+  listenersInitialized: false,
+  rafId: 0
 };
 const SUPPORTED_MANGA_SITE_KEYWORDS = [
   "pixiv",
@@ -108,6 +112,7 @@ function attachButtonsToEligibleImages() {
   if (!isSupportedMangaSite(location.hostname)) {
     return 0;
   }
+  ensureGlobalRepositionListeners();
 
   let count = 0;
   const images = collectSiteImages();
@@ -119,10 +124,9 @@ function attachButtonsToEligibleImages() {
     document.body.appendChild(btn);
     placeButton(img, btn);
 
-    const ro = new ResizeObserver(() => placeButton(img, btn));
+    const ro = new ResizeObserver(() => queueGlobalReposition());
     ro.observe(img);
-    window.addEventListener("scroll", () => placeButton(img, btn), { passive: true });
-    window.addEventListener("resize", () => placeButton(img, btn), { passive: true });
+    state.buttonMeta.set(img, { button: btn, resizeObserver: ro });
 
     state.images.add(img);
     count += 1;
@@ -250,17 +254,40 @@ function renderOverlay(img, blocks, uiConfig = {}) {
   }
 
   document.body.appendChild(overlay);
+  state.overlayMeta.set(img, overlay);
+  queueGlobalReposition();
+}
 
-  const updater = () => {
+function ensureGlobalRepositionListeners() {
+  if (state.listenersInitialized) return;
+  const onViewportChanged = () => queueGlobalReposition();
+  window.addEventListener("scroll", onViewportChanged, { passive: true });
+  window.addEventListener("resize", onViewportChanged, { passive: true });
+  state.listenersInitialized = true;
+}
+
+function queueGlobalReposition() {
+  if (state.rafId) return;
+  state.rafId = requestAnimationFrame(() => {
+    state.rafId = 0;
+    repositionAllUi();
+  });
+}
+
+function repositionAllUi() {
+  state.images.forEach((img) => {
+    const meta = state.buttonMeta.get(img);
+    if (!meta?.button || !document.contains(img)) return;
+    placeButton(img, meta.button);
+
+    const overlay = state.overlayMeta.get(img);
+    if (!overlay || !document.contains(overlay)) return;
     const rect = img.getBoundingClientRect();
     overlay.style.left = `${window.scrollX + rect.left}px`;
     overlay.style.top = `${window.scrollY + rect.top}px`;
     overlay.style.width = `${rect.width}px`;
     overlay.style.height = `${rect.height}px`;
-  };
-
-  window.addEventListener("scroll", updater, { passive: true });
-  window.addEventListener("resize", updater, { passive: true });
+  });
 }
 
 function getAdaptiveFontSize(width, height, text) {
@@ -274,6 +301,7 @@ function getAdaptiveFontSize(width, height, text) {
 }
 
 function removeOverlayForImage(img) {
+  state.overlayMeta.delete(img);
   const key = img.currentSrc || img.src;
   const old = document.querySelector(`.comic-translate-overlay[data-target-image="${CSS.escape(key)}"]`);
   if (old) old.remove();
@@ -281,6 +309,7 @@ function removeOverlayForImage(img) {
 
 function clearAllOverlays() {
   document.querySelectorAll(".comic-translate-overlay").forEach((node) => node.remove());
+  state.overlayMeta = new WeakMap();
 }
 
 function imageToDataUrl(img) {
@@ -309,21 +338,61 @@ function imageToDataUrl(img) {
 }
 
 async function getImageDataUrl(img, imageUrl) {
+  let canvasError = null;
   try {
     return await imageToDataUrl(img);
   } catch (error) {
-    const fallback = await chrome.runtime.sendMessage({
-      type: "FETCH_IMAGE_DATA_URL",
-      payload: {
-        imageUrl,
-        pageUrl: location.href
-      }
-    });
-    if (!fallback?.ok || !fallback?.dataUrl) {
-      throw error;
-    }
-    return fallback.dataUrl;
+    canvasError = error;
   }
+
+  try {
+    return await fetchImageDataUrlInPage(imageUrl);
+  } catch (pageFetchError) {
+    try {
+      const fallback = await chrome.runtime.sendMessage({
+        type: "FETCH_IMAGE_DATA_URL",
+        payload: {
+          imageUrl,
+          pageUrl: location.href
+        }
+      });
+      if (fallback?.ok && fallback?.dataUrl) {
+        return fallback.dataUrl;
+      }
+      const fallbackError = fallback?.error ? new Error(fallback.error) : null;
+      throw fallbackError || pageFetchError;
+    } catch (backgroundError) {
+      if (backgroundError?.message) {
+        throw backgroundError;
+      }
+      throw pageFetchError?.message ? pageFetchError : canvasError || new Error("Image conversion failed");
+    }
+  }
+}
+
+async function fetchImageDataUrlInPage(imageUrl) {
+  if (!imageUrl) throw new Error("Image URL is empty");
+  const response = await fetch(imageUrl, { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Page image fetch failed: ${response.status}`);
+  }
+  const blob = await response.blob();
+  return blobToDataUrl(blob);
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Blob to data URL failed"));
+      }
+    };
+    reader.onerror = () => reject(new Error("Blob to data URL failed"));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function formatErrorMessage(error) {
